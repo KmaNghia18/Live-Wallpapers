@@ -1,15 +1,18 @@
-import { app, shell, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog } from 'electron'
+import { app, shell, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, globalShortcut } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { WallpaperEngine } from './wallpaper-engine'
 import { MonitorDetector } from './monitor-detector'
 import { SettingsStore } from './settings-store'
+import { PerformanceManager } from './performance-manager'
+import { setAutoStart } from './native/win32-helper'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let wallpaperEngine: WallpaperEngine | null = null
 let monitorDetector: MonitorDetector
 let settingsStore: SettingsStore
+let performanceManager: PerformanceManager
 
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
@@ -55,7 +58,7 @@ function createMainWindow(): void {
 
 function createTray(): void {
   const iconPath = join(__dirname, '../../resources/icon.png')
-  let trayIcon: nativeImage
+  let trayIcon: Electron.NativeImage
   try {
     trayIcon = nativeImage.createFromPath(iconPath)
     if (trayIcon.isEmpty()) {
@@ -154,6 +157,20 @@ function setupIPC(): void {
 
   ipcMain.handle('set-setting', (_event, key: string, value: unknown) => {
     settingsStore.set(key, value)
+
+    // Handle auto-start setting change
+    if (key === 'autoStart') {
+      setAutoStart(value as boolean)
+    }
+
+    // Update performance manager config
+    if (key === 'pauseOnFullscreen' || key === 'pauseOnBattery') {
+      performanceManager.setConfig(
+        settingsStore.get('pauseOnFullscreen', true) as boolean,
+        settingsStore.get('pauseOnBattery', true) as boolean
+      )
+    }
+
     return true
   })
 
@@ -239,10 +256,39 @@ app.whenReady().then(() => {
 
   settingsStore = new SettingsStore()
   monitorDetector = new MonitorDetector()
+  performanceManager = new PerformanceManager()
 
   createMainWindow()
   createTray()
   setupIPC()
+
+  // Setup performance monitoring
+  performanceManager.setConfig(
+    settingsStore.get('pauseOnFullscreen', true) as boolean,
+    settingsStore.get('pauseOnBattery', true) as boolean
+  )
+  performanceManager.start((state) => {
+    if (!wallpaperEngine) return
+    if (state.shouldPause && wallpaperEngine.isPlaying()) {
+      wallpaperEngine.pause()
+      mainWindow?.webContents.send('performance-pause', state)
+    } else if (!state.shouldPause && !wallpaperEngine.isPlaying()) {
+      wallpaperEngine.play()
+      mainWindow?.webContents.send('performance-resume', state)
+    }
+  })
+
+  // Register global hotkeys
+  globalShortcut.register('Ctrl+Alt+N', () => {
+    mainWindow?.webContents.send('next-wallpaper')
+  })
+  globalShortcut.register('Ctrl+Alt+P', () => {
+    if (wallpaperEngine?.isPlaying()) {
+      wallpaperEngine.pause()
+    } else {
+      wallpaperEngine?.play()
+    }
+  })
 
   // Auto-restore wallpaper
   const lastWallpaper = settingsStore.get('currentWallpaper', null) as string | null
@@ -261,6 +307,8 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   wallpaperEngine?.destroy()
+  performanceManager?.destroy()
+  globalShortcut.unregisterAll()
 })
 
 app.on('activate', () => {

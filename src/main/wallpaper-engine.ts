@@ -2,6 +2,7 @@ import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { MonitorInfo } from './monitor-detector'
+import { getWorkerWHandle, setParentToWorkerW, spawnWorkerW } from './native/win32-helper'
 
 /**
  * WallpaperEngine - Core engine that renders video wallpapers behind desktop icons.
@@ -19,6 +20,7 @@ export class WallpaperEngine {
   private wallpaperWindows: Map<number, BrowserWindow> = new Map()
   private _isPlaying: boolean = false
   private currentWallpaper: string | null = null
+  private workerWHandle: number = 0
 
   async setWallpaper(wallpaperPath: string, monitor: MonitorInfo): Promise<void> {
     // Destroy existing wallpaper window for this monitor
@@ -81,27 +83,37 @@ export class WallpaperEngine {
   }
 
   /**
-   * Attempt to embed the window behind desktop icons.
-   * On Windows, this uses the WorkerW technique.
+   * Embed the wallpaper window behind desktop icons using WorkerW technique.
    * Falls back to 'desktop' type window if native embedding fails.
    */
   private tryEmbedBehindIcons(window: BrowserWindow): void {
     try {
-      // The 'desktop' type in Electron already places the window
-      // at the desktop level on Windows. For deeper integration,
-      // we would use ffi-napi to call:
-      //   FindWindowEx(null, null, 'Progman', null)
-      //   SendMessageTimeout(progman, 0x052C, ...)
-      //   FindWindowEx(null, null, 'WorkerW', null)
-      //   SetParent(ourWindow, workerW)
-      //
-      // For now, the 'desktop' type provides good enough behavior.
-      // Full WorkerW injection will be added in core-engine feature branch.
+      // Spawn WorkerW if not already done
+      if (this.workerWHandle === 0) {
+        spawnWorkerW()
+        this.workerWHandle = getWorkerWHandle()
+      }
 
-      window.setAlwaysOnTop(false)
-      window.moveTop()
+      if (this.workerWHandle !== 0) {
+        // Get native window handle from Electron BrowserWindow
+        const nativeHandle = window.getNativeWindowHandle()
+        const hwnd = nativeHandle.readUInt32LE(0)
+
+        // Set our window as child of WorkerW
+        const success = setParentToWorkerW(hwnd, this.workerWHandle)
+        if (success) {
+          console.log('Successfully embedded wallpaper behind desktop icons')
+        } else {
+          console.warn('setParentToWorkerW failed, falling back to desktop type')
+          window.setAlwaysOnTop(false)
+        }
+      } else {
+        console.warn('Could not find WorkerW handle, falling back to desktop type')
+        window.setAlwaysOnTop(false)
+      }
     } catch (error) {
       console.error('Failed to embed wallpaper behind icons:', error)
+      window.setAlwaysOnTop(false)
     }
   }
 
