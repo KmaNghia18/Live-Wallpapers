@@ -9,7 +9,7 @@ export type InteractionMode = 'parallax' | 'ripple' | 'particle-trail' | 'repel'
 
 interface InteractiveConfig {
   mode: InteractionMode
-  intensity: number // 0 to 1
+  intensity: number
   color: string
   particleCount: number
 }
@@ -48,8 +48,6 @@ export class InteractiveHandler {
   private mouseY: number = 0
   private prevMouseX: number = 0
   private prevMouseY: number = 0
-  private isMouseDown: boolean = false
-
   private ripples: Ripple[] = []
   private particles: Particle[] = []
 
@@ -71,8 +69,6 @@ export class InteractiveHandler {
     if (config) {
       this.config = { ...this.config, ...config }
     }
-
-    // Add event listeners
     document.addEventListener('mousemove', this.boundMouseMove)
     document.addEventListener('mousedown', this.boundMouseDown)
     document.addEventListener('mouseup', this.boundMouseUp)
@@ -101,7 +97,6 @@ export class InteractiveHandler {
     this.mouseX = e.clientX
     this.mouseY = e.clientY
 
-    // Generate particles on mouse trail
     if (this.config.mode === 'particle-trail') {
       const speed = Math.sqrt(
         Math.pow(this.mouseX - this.prevMouseX, 2) +
@@ -114,52 +109,35 @@ export class InteractiveHandler {
   }
 
   private onMouseDown(e: MouseEvent): void {
-    this.isMouseDown = true
-
     if (this.config.mode === 'ripple') {
       this.ripples.push({
-        x: e.clientX,
-        y: e.clientY,
-        radius: 0,
-        maxRadius: 200 * this.config.intensity,
-        opacity: 0.8
+        x: e.clientX, y: e.clientY,
+        radius: 0, maxRadius: 200 * this.config.intensity, opacity: 0.8
       })
     }
 
     if (this.config.mode === 'repel') {
-      // Burst of particles from click point
       for (let i = 0; i < this.config.particleCount; i++) {
         const angle = (Math.PI * 2 * i) / this.config.particleCount
         const speed = 3 + Math.random() * 5
         this.particles.push({
-          x: e.clientX,
-          y: e.clientY,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          size: 2 + Math.random() * 4,
-          life: 1.0,
-          color: this.config.color
+          x: e.clientX, y: e.clientY,
+          vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+          size: 2 + Math.random() * 4, life: 1.0, color: this.config.color
         })
       }
     }
   }
 
   private onMouseUp(): void {
-    this.isMouseDown = false
+    // Reserved for future drag interactions
   }
 
-  private onKeyDown(e: KeyboardEvent): void {
-    // Create a burst effect on key press
+  private onKeyDown(_e: KeyboardEvent): void {
     if (this.config.mode !== 'none' && this.canvas) {
-      const centerX = this.canvas.width / 2
-      const centerY = this.canvas.height / 2
-
       this.ripples.push({
-        x: centerX,
-        y: centerY,
-        radius: 0,
-        maxRadius: 300,
-        opacity: 0.3
+        x: this.canvas.width / 2, y: this.canvas.height / 2,
+        radius: 0, maxRadius: 300, opacity: 0.3
       })
     }
   }
@@ -167,79 +145,59 @@ export class InteractiveHandler {
   private spawnTrailParticles(x: number, y: number, count: number): void {
     for (let i = 0; i < count; i++) {
       this.particles.push({
-        x: x + (Math.random() - 0.5) * 10,
-        y: y + (Math.random() - 0.5) * 10,
-        vx: (Math.random() - 0.5) * 2,
-        vy: (Math.random() - 0.5) * 2 - 1,
-        size: 1 + Math.random() * 3,
-        life: 1.0,
-        color: this.config.color
+        x: x + (Math.random() - 0.5) * 10, y: y + (Math.random() - 0.5) * 10,
+        vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2 - 1,
+        size: 1 + Math.random() * 3, life: 1.0, color: this.config.color
       })
     }
   }
 
   private render = (): void => {
     this.animationId = requestAnimationFrame(this.render)
-
     if (!this.canvas || !this.ctx) return
     const { width, height } = this.canvas
-
     this.ctx.clearRect(0, 0, width, height)
 
     switch (this.config.mode) {
-      case 'parallax':
-        this.renderParallax(width, height)
-        break
-      case 'ripple':
-        this.renderRipples()
-        break
-      case 'particle-trail':
-        this.renderParticles()
-        break
-      case 'repel':
-        this.renderParticles()
-        break
+      case 'parallax': this.renderParallax(width, height); break
+      case 'ripple': this.renderRipples(); break
+      case 'particle-trail': this.renderParticles(); break
+      case 'repel': this.renderParticles(); break
     }
   }
 
   private renderParallax(width: number, height: number): void {
     if (!this.ctx) return
-
-    // Create a subtle vignette that follows mouse
     const normalX = this.mouseX / width
     const normalY = this.mouseY / height
     const offsetX = (normalX - 0.5) * 30 * this.config.intensity
     const offsetY = (normalY - 0.5) * 30 * this.config.intensity
 
-    // Light spot following mouse
     const gradient = this.ctx.createRadialGradient(
-      this.mouseX, this.mouseY, 0,
-      this.mouseX, this.mouseY, 300
+      this.mouseX + offsetX, this.mouseY + offsetY, 0,
+      this.mouseX + offsetX, this.mouseY + offsetY, 300
     )
     gradient.addColorStop(0, `${this.config.color}15`)
     gradient.addColorStop(1, 'transparent')
-
     this.ctx.fillStyle = gradient
     this.ctx.fillRect(0, 0, width, height)
   }
 
   private renderRipples(): void {
     if (!this.ctx) return
-
     this.ripples = this.ripples.filter(r => r.opacity > 0.01)
 
     for (const ripple of this.ripples) {
       ripple.radius += 3
       ripple.opacity *= 0.97
 
-      this.ctx.strokeStyle = `${this.config.color}`
+      this.ctx.strokeStyle = this.config.color
       this.ctx.globalAlpha = ripple.opacity
       this.ctx.lineWidth = 2
       this.ctx.beginPath()
       this.ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2)
       this.ctx.stroke()
 
-      // Inner ring
       if (ripple.radius > 20) {
         this.ctx.globalAlpha = ripple.opacity * 0.5
         this.ctx.beginPath()
@@ -252,13 +210,12 @@ export class InteractiveHandler {
 
   private renderParticles(): void {
     if (!this.ctx) return
-
     this.particles = this.particles.filter(p => p.life > 0)
 
     for (const p of this.particles) {
       p.x += p.vx
       p.y += p.vy
-      p.vy += 0.02 // Slight gravity
+      p.vy += 0.02
       p.life -= 0.02
       p.size *= 0.995
 
@@ -268,7 +225,6 @@ export class InteractiveHandler {
       this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
       this.ctx.fill()
 
-      // Glow effect
       this.ctx.globalAlpha = p.life * 0.3
       this.ctx.beginPath()
       this.ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2)
@@ -276,8 +232,6 @@ export class InteractiveHandler {
     }
 
     this.ctx.globalAlpha = 1
-
-    // Limit particles
     if (this.particles.length > 300) {
       this.particles = this.particles.slice(-300)
     }

@@ -10,14 +10,8 @@
  * - Memory cleanup on wallpaper switch
  */
 
-declare global {
-  interface Window {
-    api?: {
-      onLoadWallpaper: (callback: (event: any, data: WallpaperData) => void) => void
-      onWallpaperControl: (callback: (event: any, action: string) => void) => void
-    }
-  }
-}
+// Make this file a module so `declare global` works
+export {}
 
 interface WallpaperData {
   path: string
@@ -25,6 +19,9 @@ interface WallpaperData {
   height: number
   type: 'video' | 'gif' | 'image' | 'web' | 'shader'
 }
+
+// Use window.api as any to avoid type conflict with App.tsx's declaration
+const getApi = (): any => (window as any).api
 
 const container = document.getElementById('wallpaper-container')!
 
@@ -249,13 +246,14 @@ function loadShader(width: number, height: number): void {
 // === IPC Setup (guard against undefined window.api) ===
 
 function setupIPC(): void {
-  if (!window.api) {
+  const api = getApi()
+  if (!api) {
     console.warn('window.api is not available — wallpaper IPC disabled')
     return
   }
 
   // Listen for wallpaper load commands from main process
-  window.api.onLoadWallpaper((_event, data: WallpaperData) => {
+  api.onLoadWallpaper((_event: any, data: WallpaperData) => {
     console.log('Loading wallpaper:', data)
 
     switch (data.type) {
@@ -277,7 +275,7 @@ function setupIPC(): void {
   })
 
   // Listen for play/pause controls
-  window.api.onWallpaperControl((_event, action: string) => {
+  api.onWallpaperControl((_event: any, action: string) => {
     if (currentElement instanceof HTMLVideoElement) {
       if (action === 'pause') {
         currentElement.pause()
@@ -298,3 +296,4 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
 } else {
   document.addEventListener('DOMContentLoaded', setupIPC)
 }
+

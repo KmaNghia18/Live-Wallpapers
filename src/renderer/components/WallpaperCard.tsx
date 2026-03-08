@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useRef } from 'react'
 import { WallpaperItem } from '../App'
 
 interface WallpaperCardProps {
@@ -16,18 +16,15 @@ function WallpaperCard({
   onToggleFavorite,
   onRemove
 }: WallpaperCardProps): JSX.Element {
-  const [isHovered, setIsHovered] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const handleMouseEnter = (): void => {
-    setIsHovered(true)
     if (videoRef.current && wallpaper.type === 'video') {
       videoRef.current.play().catch(() => {})
     }
   }
 
   const handleMouseLeave = (): void => {
-    setIsHovered(false)
     if (videoRef.current) {
       videoRef.current.pause()
       videoRef.current.currentTime = 0
@@ -95,6 +92,24 @@ function WallpaperCard({
             title="Set as wallpaper"
           >
             ▶
+          </button>
+          <button
+            className="wallpaper-card__remove-btn"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemove()
+            }}
+            title="Remove from library"
+            style={{
+              position: 'absolute', top: '8px', right: '8px',
+              background: 'rgba(0,0,0,0.5)', border: 'none',
+              color: '#ff6b6b', borderRadius: '6px',
+              width: '28px', height: '28px', cursor: 'pointer',
+              fontSize: '0.8rem', display: 'flex',
+              alignItems: 'center', justifyContent: 'center'
+            }}
+          >
+            ✕
           </button>
         </div>
 

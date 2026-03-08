@@ -153,7 +153,7 @@ export class AudioVisualizer {
 
     // Get frequency data
     if (this.analyser && !this.isDemoMode) {
-      this.analyser.getByteFrequencyData(this.frequencyData)
+      this.analyser.getByteFrequencyData(this.frequencyData as Uint8Array<ArrayBuffer>)
     } else {
       // Demo mode: simulate audio data
       this.simulateAudioData()
