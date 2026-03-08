@@ -4,6 +4,9 @@ import Sidebar from './components/Sidebar'
 import Gallery from './components/Gallery'
 import SettingsPanel from './components/SettingsPanel'
 import MonitorInfo from './components/MonitorInfo'
+import PlaylistEditor from './components/PlaylistEditor'
+import AudioVisualizerSettings from './components/AudioVisualizerSettings'
+import SystemWidgets from './components/SystemWidgets'
 
 declare global {
   interface Window {
@@ -42,7 +45,7 @@ export interface WallpaperItem {
   dateAdded: string
 }
 
-type PageView = 'gallery' | 'favorites' | 'settings' | 'monitors' | 'about'
+type PageView = 'gallery' | 'favorites' | 'settings' | 'monitors' | 'playlists' | 'visualizer' | 'system'
 
 function App(): JSX.Element {
   const [currentView, setCurrentView] = useState<PageView>('gallery')
@@ -180,6 +183,12 @@ function App(): JSX.Element {
         )
       case 'monitors':
         return <MonitorInfo />
+      case 'playlists':
+        return <PlaylistEditor wallpapers={wallpapers} />
+      case 'visualizer':
+        return <AudioVisualizerSettings />
+      case 'system':
+        return <SystemWidgets />
       default:
         return (
           <Gallery

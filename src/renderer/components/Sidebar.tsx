@@ -9,6 +9,9 @@ interface SidebarProps {
 const menuItems = [
   { id: 'gallery', icon: '🖼', label: 'Gallery' },
   { id: 'favorites', icon: '❤️', label: 'Favorites' },
+  { id: 'playlists', icon: '📋', label: 'Playlists' },
+  { id: 'visualizer', icon: '🎵', label: 'Visualizer' },
+  { id: 'system', icon: '📊', label: 'System' },
   { id: 'monitors', icon: '🖥', label: 'Monitors' },
   { id: 'settings', icon: '⚙️', label: 'Settings' }
 ]
