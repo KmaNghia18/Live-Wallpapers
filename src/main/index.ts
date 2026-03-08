@@ -1,0 +1,270 @@
+import { app, shell, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog } from 'electron'
+import { join } from 'path'
+import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { WallpaperEngine } from './wallpaper-engine'
+import { MonitorDetector } from './monitor-detector'
+import { SettingsStore } from './settings-store'
+
+let mainWindow: BrowserWindow | null = null
+let tray: Tray | null = null
+let wallpaperEngine: WallpaperEngine | null = null
+let monitorDetector: MonitorDetector
+let settingsStore: SettingsStore
+
+function createMainWindow(): void {
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
+    show: false,
+    frame: false,
+    titleBarStyle: 'hidden',
+    backgroundColor: '#0a0a0f',
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow?.show()
+  })
+
+  mainWindow.on('close', (event) => {
+    if (settingsStore.get('minimizeToTray', true)) {
+      event.preventDefault()
+      mainWindow?.hide()
+    }
+  })
+
+  mainWindow.webContents.setWindowOpenHandler((details) => {
+    shell.openExternal(details.url)
+    return { action: 'deny' }
+  })
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  } else {
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+function createTray(): void {
+  const iconPath = join(__dirname, '../../resources/icon.png')
+  let trayIcon: nativeImage
+  try {
+    trayIcon = nativeImage.createFromPath(iconPath)
+    if (trayIcon.isEmpty()) {
+      trayIcon = nativeImage.createEmpty()
+    }
+  } catch {
+    trayIcon = nativeImage.createEmpty()
+  }
+
+  tray = new Tray(trayIcon)
+  tray.setToolTip('Live Wallpaper')
+
+  const updateTrayMenu = (): void => {
+    const isPlaying = wallpaperEngine?.isPlaying() ?? false
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: isPlaying ? '⏸ Pause Wallpaper' : '▶ Play Wallpaper',
+        click: (): void => {
+          if (wallpaperEngine) {
+            if (isPlaying) {
+              wallpaperEngine.pause()
+            } else {
+              wallpaperEngine.play()
+            }
+            updateTrayMenu()
+          }
+        }
+      },
+      {
+        label: '⏭ Next Wallpaper',
+        click: (): void => {
+          mainWindow?.webContents.send('next-wallpaper')
+        }
+      },
+      { type: 'separator' },
+      {
+        label: '🖼 Open Gallery',
+        click: (): void => {
+          mainWindow?.show()
+          mainWindow?.focus()
+        }
+      },
+      {
+        label: '⚙ Settings',
+        click: (): void => {
+          mainWindow?.show()
+          mainWindow?.focus()
+          mainWindow?.webContents.send('open-settings')
+        }
+      },
+      { type: 'separator' },
+      {
+        label: '❌ Exit',
+        click: (): void => {
+          wallpaperEngine?.destroy()
+          app.quit()
+        }
+      }
+    ])
+    tray?.setContextMenu(contextMenu)
+  }
+
+  updateTrayMenu()
+
+  tray.on('double-click', () => {
+    mainWindow?.show()
+    mainWindow?.focus()
+  })
+
+  ipcMain.on('update-tray', () => {
+    updateTrayMenu()
+  })
+}
+
+function setupIPC(): void {
+  // Window controls
+  ipcMain.on('window-minimize', () => mainWindow?.minimize())
+  ipcMain.on('window-maximize', () => {
+    if (mainWindow?.isMaximized()) {
+      mainWindow.unmaximize()
+    } else {
+      mainWindow?.maximize()
+    }
+  })
+  ipcMain.on('window-close', () => mainWindow?.close())
+
+  // Monitor info
+  ipcMain.handle('get-monitors', () => {
+    return monitorDetector.getAllMonitors()
+  })
+
+  // Settings
+  ipcMain.handle('get-settings', () => {
+    return settingsStore.getAll()
+  })
+
+  ipcMain.handle('set-setting', (_event, key: string, value: unknown) => {
+    settingsStore.set(key, value)
+    return true
+  })
+
+  // Wallpaper engine
+  ipcMain.handle('set-wallpaper', async (_event, wallpaperPath: string, monitorId?: number) => {
+    try {
+      const monitors = monitorDetector.getAllMonitors()
+      const targetMonitor = monitorId !== undefined
+        ? monitors.find(m => m.id === monitorId)
+        : monitors[0]
+
+      if (!targetMonitor) return { success: false, error: 'Monitor not found' }
+
+      if (!wallpaperEngine) {
+        wallpaperEngine = new WallpaperEngine()
+      }
+
+      await wallpaperEngine.setWallpaper(wallpaperPath, targetMonitor)
+      settingsStore.set('currentWallpaper', wallpaperPath)
+
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('pause-wallpaper', () => {
+    wallpaperEngine?.pause()
+    return true
+  })
+
+  ipcMain.handle('play-wallpaper', () => {
+    wallpaperEngine?.play()
+    return true
+  })
+
+  ipcMain.handle('get-wallpaper-status', () => {
+    return {
+      isPlaying: wallpaperEngine?.isPlaying() ?? false,
+      currentWallpaper: settingsStore.get('currentWallpaper', null)
+    }
+  })
+
+  // File dialog
+  ipcMain.handle('open-file-dialog', async () => {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Videos', extensions: ['mp4', 'webm', 'mkv', 'avi', 'mov'] },
+        { name: 'Images', extensions: ['gif', 'png', 'jpg', 'jpeg', 'webp'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    })
+    return result.filePaths
+  })
+
+  // Get wallpaper library
+  ipcMain.handle('get-wallpaper-library', () => {
+    return settingsStore.get('wallpaperLibrary', [])
+  })
+
+  ipcMain.handle('add-to-library', (_event, wallpaper: object) => {
+    const library = settingsStore.get('wallpaperLibrary', []) as object[]
+    library.push(wallpaper)
+    settingsStore.set('wallpaperLibrary', library)
+    return library
+  })
+
+  ipcMain.handle('remove-from-library', (_event, wallpaperPath: string) => {
+    const library = settingsStore.get('wallpaperLibrary', []) as Array<{ path: string }>
+    const updated = library.filter(w => w.path !== wallpaperPath)
+    settingsStore.set('wallpaperLibrary', updated)
+    return updated
+  })
+}
+
+app.whenReady().then(() => {
+  electronApp.setAppUserModelId('com.livewallpaper.app')
+
+  app.on('browser-window-created', (_, window) => {
+    optimizer.watchWindowShortcuts(window)
+  })
+
+  settingsStore = new SettingsStore()
+  monitorDetector = new MonitorDetector()
+
+  createMainWindow()
+  createTray()
+  setupIPC()
+
+  // Auto-restore wallpaper
+  const lastWallpaper = settingsStore.get('currentWallpaper', null) as string | null
+  if (lastWallpaper) {
+    const monitors = monitorDetector.getAllMonitors()
+    if (monitors.length > 0) {
+      wallpaperEngine = new WallpaperEngine()
+      wallpaperEngine.setWallpaper(lastWallpaper, monitors[0]).catch(console.error)
+    }
+  }
+})
+
+app.on('window-all-closed', () => {
+  // Keep running in tray
+})
+
+app.on('before-quit', () => {
+  wallpaperEngine?.destroy()
+})
+
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createMainWindow()
+  }
+})
