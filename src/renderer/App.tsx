@@ -7,6 +7,7 @@ import MonitorInfo from './components/MonitorInfo'
 import PlaylistEditor from './components/PlaylistEditor'
 import AudioVisualizerSettings from './components/AudioVisualizerSettings'
 import SystemWidgets from './components/SystemWidgets'
+import NowPlayingBar from './components/NowPlayingBar'
 
 declare global {
   interface Window {
@@ -56,7 +57,6 @@ function App(): JSX.Element {
 
   useEffect(() => {
     loadData()
-
     window.api.onOpenSettings(() => setCurrentView('settings'))
     window.api.onNextWallpaper(() => handleNextWallpaper())
   }, [])
@@ -133,6 +133,13 @@ function App(): JSX.Element {
     handleSetWallpaper(wallpapers[nextIndex])
   }, [wallpapers, currentWallpaper, handleSetWallpaper])
 
+  const handlePreviousWallpaper = useCallback((): void => {
+    if (wallpapers.length === 0) return
+    const currentIndex = wallpapers.findIndex(w => w.path === currentWallpaper)
+    const prevIndex = (currentIndex - 1 + wallpapers.length) % wallpapers.length
+    handleSetWallpaper(wallpapers[prevIndex])
+  }, [wallpapers, currentWallpaper, handleSetWallpaper])
+
   const handleTogglePlay = useCallback(async (): Promise<void> => {
     if (isPlaying) {
       await window.api.pauseWallpaper()
@@ -147,6 +154,9 @@ function App(): JSX.Element {
     await window.api.setSetting(key, value)
     setSettings(prev => ({ ...prev, [key]: value }))
   }, [])
+
+  // Find current wallpaper item for NowPlayingBar
+  const currentWallpaperItem = wallpapers.find(w => w.path === currentWallpaper) || null
 
   const renderContent = (): JSX.Element => {
     switch (currentView) {
@@ -218,6 +228,13 @@ function App(): JSX.Element {
           {renderContent()}
         </main>
       </div>
+      <NowPlayingBar
+        currentWallpaper={currentWallpaperItem}
+        isPlaying={isPlaying}
+        onTogglePlay={handleTogglePlay}
+        onNext={handleNextWallpaper}
+        onPrevious={handlePreviousWallpaper}
+      />
     </>
   )
 }

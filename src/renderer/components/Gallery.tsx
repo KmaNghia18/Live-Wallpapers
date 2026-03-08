@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import WallpaperCard from './WallpaperCard'
 import { WallpaperItem } from '../App'
+import { IconSearch, IconPlus, IconFolder } from './Icons'
 
 interface GalleryProps {
   wallpapers: WallpaperItem[]
@@ -13,6 +14,14 @@ interface GalleryProps {
   subtitle?: string
 }
 
+const filterChips = [
+  { id: 'all', label: 'All' },
+  { id: 'video', label: 'Video' },
+  { id: 'gif', label: 'GIF' },
+  { id: 'image', label: 'Image' },
+  { id: 'shader', label: 'Shader' }
+]
+
 function Gallery({
   wallpapers,
   currentWallpaper,
@@ -24,7 +33,7 @@ function Gallery({
   subtitle = 'Your wallpaper collection'
 }: GalleryProps): JSX.Element {
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterType, setFilterType] = useState<string>('all')
+  const [filterType, setFilterType] = useState('all')
   const [isDragging, setIsDragging] = useState(false)
   const dropRef = useRef<HTMLDivElement>(null)
 
@@ -46,50 +55,51 @@ function Gallery({
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(false)
-    // Files dropped — trigger add dialog (since we can't read local files directly in sandbox)
     onAddWallpapers()
   }, [onAddWallpapers])
 
   return (
     <div className="animate-fade-in">
+      {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-header__title">{title}</h1>
-          <p className="page-header__subtitle">{subtitle}</p>
+          <p className="page-header__subtitle">{subtitle} • {wallpapers.length} items</p>
         </div>
         <div className="page-header__actions">
-          <input
-            type="text"
-            placeholder="🔍 Search wallpapers..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            style={{
-              padding: '10px 16px',
-              borderRadius: '12px',
-              border: '1px solid rgba(255,255,255,0.06)',
-              background: 'rgba(26, 26, 46, 0.6)',
-              color: '#f0f0f5',
-              fontFamily: 'inherit',
-              fontSize: '0.85rem',
-              width: '220px',
-              outline: 'none',
-              backdropFilter: 'blur(10px)'
-            }}
-          />
-          <select
-            className="select"
-            value={filterType}
-            onChange={e => setFilterType(e.target.value)}
-          >
-            <option value="all">All Types</option>
-            <option value="video">Video</option>
-            <option value="gif">GIF</option>
-            <option value="image">Image</option>
-          </select>
+          <div className="search-box">
+            <IconSearch size={16} className="search-box__icon" />
+            <input
+              type="text"
+              placeholder="Search wallpapers..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="search-box__input"
+            />
+          </div>
           <button className="btn btn--primary" onClick={onAddWallpapers}>
-            ➕ Add Wallpaper
+            <IconPlus size={16} />
+            Add Wallpaper
           </button>
         </div>
+      </div>
+
+      {/* Filter Chips */}
+      <div className="filter-chips">
+        {filterChips.map(chip => (
+          <button
+            key={chip.id}
+            className={`filter-chip ${filterType === chip.id ? 'filter-chip--active' : ''}`}
+            onClick={() => setFilterType(chip.id)}
+          >
+            {chip.label}
+            {chip.id !== 'all' && (
+              <span className="filter-chip__count">
+                {wallpapers.filter(w => w.type === chip.id).length}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       {wallpapers.length === 0 ? (
@@ -101,13 +111,19 @@ function Gallery({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <div className="drop-zone__icon">📁</div>
+          <div className="drop-zone__icon-wrap">
+            <IconFolder size={48} />
+          </div>
           <div className="drop-zone__text">
             Drop video files here or click to browse
           </div>
           <div className="drop-zone__hint">
             Supports: MP4, WebM, MKV, AVI, MOV, GIF, PNG, JPG
           </div>
+          <button className="btn btn--primary" style={{ marginTop: '16px' }}>
+            <IconPlus size={16} />
+            Browse Files
+          </button>
         </div>
       ) : (
         <div
@@ -117,14 +133,12 @@ function Gallery({
           onDrop={handleDrop}
         >
           {/* Add new card */}
-          <div
-            className="wallpaper-card"
-            onClick={onAddWallpapers}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '220px' }}
-          >
-            <div style={{ textAlign: 'center', padding: '20px' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '10px', opacity: 0.3 }}>➕</div>
-              <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Add Wallpaper</div>
+          <div className="wallpaper-card wallpaper-card--add" onClick={onAddWallpapers}>
+            <div className="wallpaper-card__add-content">
+              <div className="wallpaper-card__add-icon">
+                <IconPlus size={28} />
+              </div>
+              <span>Add Wallpaper</span>
             </div>
           </div>
 
@@ -143,7 +157,7 @@ function Gallery({
 
       {wallpapers.length > 0 && filteredWallpapers.length === 0 && searchTerm && (
         <div className="empty-state">
-          <div className="empty-state__icon">🔍</div>
+          <div className="empty-state__icon"><IconSearch size={48} /></div>
           <div className="empty-state__title">No results found</div>
           <div className="empty-state__description">
             No wallpapers match &ldquo;{searchTerm}&rdquo;. Try a different search term.

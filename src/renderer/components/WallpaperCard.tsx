@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { WallpaperItem } from '../App'
+import { IconHeartFilled, IconHeart, IconTrash, IconPlay, TypeIcon } from './Icons'
 
 interface WallpaperCardProps {
   wallpaper: WallpaperItem
@@ -38,17 +39,6 @@ function WallpaperCard({
     return 'wallpaper-card__badge--fhd'
   }
 
-  const getTypeIcon = (): string => {
-    switch (wallpaper.type) {
-      case 'video': return '🎬'
-      case 'gif': return '✨'
-      case 'image': return '🖼'
-      case 'web': return '🌐'
-      case 'shader': return '🎨'
-      default: return '📄'
-    }
-  }
-
   const formatSize = (bytes: number): string => {
     if (bytes === 0) return ''
     const mb = bytes / (1024 * 1024)
@@ -57,7 +47,7 @@ function WallpaperCard({
 
   return (
     <div
-      className="wallpaper-card"
+      className={`wallpaper-card ${isActive ? 'wallpaper-card--active' : ''}`}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onDoubleClick={onSetWallpaper}
@@ -82,6 +72,7 @@ function WallpaperCard({
           />
         )}
 
+        {/* Hover Overlay */}
         <div className="wallpaper-card__overlay">
           <button
             className="wallpaper-card__play-btn"
@@ -91,34 +82,18 @@ function WallpaperCard({
             }}
             title="Set as wallpaper"
           >
-            ▶
-          </button>
-          <button
-            className="wallpaper-card__remove-btn"
-            onClick={(e) => {
-              e.stopPropagation()
-              onRemove()
-            }}
-            title="Remove from library"
-            style={{
-              position: 'absolute', top: '8px', right: '8px',
-              background: 'rgba(0,0,0,0.5)', border: 'none',
-              color: '#ff6b6b', borderRadius: '6px',
-              width: '28px', height: '28px', cursor: 'pointer',
-              fontSize: '0.8rem', display: 'flex',
-              alignItems: 'center', justifyContent: 'center'
-            }}
-          >
-            ✕
+            <IconPlay size={22} />
           </button>
         </div>
 
+        {/* Resolution Badge */}
         {wallpaper.resolution && (
           <div className={`wallpaper-card__badge ${getResolutionBadgeClass()}`}>
             {wallpaper.resolution}
           </div>
         )}
 
+        {/* Favorite Button */}
         <button
           className={`wallpaper-card__favorite ${wallpaper.favorite ? 'wallpaper-card__favorite--active' : ''}`}
           onClick={(e) => {
@@ -127,18 +102,41 @@ function WallpaperCard({
           }}
           title={wallpaper.favorite ? 'Remove from favorites' : 'Add to favorites'}
         >
-          {wallpaper.favorite ? '❤️' : '🤍'}
+          {wallpaper.favorite ? <IconHeartFilled size={14} /> : <IconHeart size={14} />}
         </button>
 
-        {isActive && <div className="wallpaper-card__active-indicator" />}
+        {/* Remove Button */}
+        <button
+          className="wallpaper-card__remove"
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+          }}
+          title="Remove from library"
+        >
+          <IconTrash size={14} />
+        </button>
+
+        {/* Active Indicator */}
+        {isActive && (
+          <div className="wallpaper-card__active-indicator">
+            <div className="wallpaper-card__active-badge">
+              <span className="wallpaper-card__active-dot" />
+              NOW PLAYING
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="wallpaper-card__info">
         <div className="wallpaper-card__name">{wallpaper.name}</div>
         <div className="wallpaper-card__meta">
-          <span>{getTypeIcon()} {wallpaper.type.toUpperCase()}</span>
-          {wallpaper.size > 0 && <span>📦 {formatSize(wallpaper.size)}</span>}
-          {wallpaper.category && <span>📁 {wallpaper.category}</span>}
+          <span className="wallpaper-card__type-badge">
+            <TypeIcon type={wallpaper.type} size={12} />
+            {wallpaper.type.toUpperCase()}
+          </span>
+          {wallpaper.size > 0 && <span>{formatSize(wallpaper.size)}</span>}
+          {wallpaper.category && <span>{wallpaper.category}</span>}
         </div>
       </div>
     </div>
