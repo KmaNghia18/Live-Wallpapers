@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wallpaper Renderer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      cursor: none;
+    }
+    #wallpaper-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    video, img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="wallpaper-container"></div>
+  <script>
+    const container = document.getElementById('wallpaper-container');
+    let currentElement = null;
+
+    function clearContainer() {
+      while (container.firstChild) {
+        const child = container.firstChild;
+        if (child.tagName === 'VIDEO') {
+          child.pause();
+          child.src = '';
+          child.load();
+        }
+        container.removeChild(child);
+      }
+      currentElement = null;
+    }
+
+    function loadVideo(path) {
+      clearContainer();
+      const video = document.createElement('video');
+      video.src = 'file://' + path;
+      video.autoplay = true;
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.objectFit = 'cover';
+      video.addEventListener('loadeddata', () => video.play().catch(console.error));
+      container.appendChild(video);
+      currentElement = video;
+    }
+
+    function loadImage(path) {
+      clearContainer();
+      const img = document.createElement('img');
+      img.src = 'file://' + path;
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.style.objectFit = 'cover';
+      container.appendChild(img);
+      currentElement = img;
+    }
+
+    // IPC Listeners
+    if (window.api) {
+      window.api.onLoadWallpaper((_event, data) => {
+        switch (data.type) {
+          case 'video': loadVideo(data.path); break;
+          case 'image': case 'gif': loadImage(data.path); break;
+          default: loadVideo(data.path);
+        }
+      });
+
+      window.api.onWallpaperControl((_event, action) => {
+        if (currentElement && currentElement.tagName === 'VIDEO') {
+          if (action === 'pause') currentElement.pause();
+          else if (action === 'play') currentElement.play().catch(console.error);
+        }
+      });
+    }
+  </script>
+</body>
+</html>
