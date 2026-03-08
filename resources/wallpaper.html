@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wallpaper Renderer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      cursor: none;
+    }
+    #wallpaper-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+    video, img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    .error-display {
+      width: 100%; height: 100%; display: flex; align-items: center;
+      justify-content: center; color: rgba(255,255,255,0.3);
+      font-family: sans-serif; font-size: 14px; text-align: center;
+      padding: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div id="wallpaper-container"></div>
+
+  <script>
+    // ============================================
+    // Wallpaper Renderer — Self-contained inline JS
+    // ============================================
+
+    const container = document.getElementById('wallpaper-container');
+    let currentElement = null;
+    let currentAnimationId = 0;
+
+    /**
+     * Convert Windows path to file:// URL
+     */
+    function pathToFileURL(filePath) {
+      let cleaned = filePath.replace(/^file:\/\/\/?/, '');
+      cleaned = cleaned.replace(/\\/g, '/');
+      if (!cleaned.startsWith('/')) {
+        cleaned = '/' + cleaned;
+      }
+      return 'file://' + cleaned;
+    }
+
+    function clearContainer() {
+      if (currentAnimationId) {
+        cancelAnimationFrame(currentAnimationId);
+        currentAnimationId = 0;
+      }
+      while (container.firstChild) {
+        const child = container.firstChild;
+        if (child.tagName === 'VIDEO') {
+          child.pause();
+          child.removeAttribute('src');
+          child.load();
+        }
+        container.removeChild(child);
+      }
+      currentElement = null;
+    }
+
+    function showError(message) {
+      clearContainer();
+      const div = document.createElement('div');
+      div.className = 'error-display';
+      div.textContent = message;
+      container.appendChild(div);
+    }
+
+    function loadVideo(path) {
+      clearContainer();
+      const video = document.createElement('video');
+      video.src = pathToFileURL(path);
+      video.autoplay = true;
+      video.loop = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.objectFit = 'cover';
+
+      video.addEventListener('canplay', function() {
+        video.play().catch(function(err) {
+          console.error('Video play failed:', err);
+        });
+      });
+
+      video.addEventListener('error', function() {
+        const msg = video.error ? video.error.message : 'Unknown error';
+        console.error('Video error:', msg, 'path:', path);
+        showError('Failed to load: ' + path + ' — ' + msg);
+      });
+
+      container.appendChild(video);
+      currentElement = video;
+      console.log('[Wallpaper] Video loaded:', pathToFileURL(path));
+    }
+
+    function loadImage(path) {
+      clearContainer();
+      const img = document.createElement('img');
+      img.src = pathToFileURL(path);
+      img.style.width = '100%';
+      img.style.height = '100%';
+      img.style.objectFit = 'cover';
+
+      img.addEventListener('error', function() {
+        showError('Failed to load image: ' + path);
+      });
+
+      container.appendChild(img);
+      currentElement = img;
+      console.log('[Wallpaper] Image loaded:', path);
+    }
+
+    function loadGif(path) {
+      loadImage(path);
+    }
+
+    function loadShader(width, height) {
+      clearContainer();
+      const canvas = document.createElement('canvas');
+      canvas.width = width || window.innerWidth;
+      canvas.height = height || window.innerHeight;
+
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+      if (!gl) {
+        showError('WebGL not supported');
+        return;
+      }
+
+      const vsSource = 'attribute vec2 position; void main() { gl_Position = vec4(position, 0.0, 1.0); }';
+      const fsSource = `precision highp float;
+        uniform float u_time;
+        uniform vec2 u_resolution;
+        void main() {
+          vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+          vec3 col = 0.5 + 0.5 * cos(u_time + uv.xyx * 3.0 + vec3(0,2,4));
+          col *= 0.3;
+          gl_FragColor = vec4(col, 1.0);
+        }`;
+
+      function compile(src, type) {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+          console.error('Shader error:', gl.getShaderInfoLog(s));
+          return null;
+        }
+        return s;
+      }
+
+      const vs = compile(vsSource, gl.VERTEX_SHADER);
+      const fs = compile(fsSource, gl.FRAGMENT_SHADER);
+      if (!vs || !fs) { showError('Shader compile failed'); return; }
+
+      const prog = gl.createProgram();
+      gl.attachShader(prog, vs);
+      gl.attachShader(prog, fs);
+      gl.linkProgram(prog);
+      gl.useProgram(prog);
+
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+      const pos = gl.getAttribLocation(prog, 'position');
+      gl.enableVertexAttribArray(pos);
+      gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+
+      const timeLoc = gl.getUniformLocation(prog, 'u_time');
+      const resLoc = gl.getUniformLocation(prog, 'u_resolution');
+
+      function render(time) {
+        gl.uniform1f(timeLoc, time * 0.001);
+        gl.uniform2f(resLoc, canvas.width, canvas.height);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        currentAnimationId = requestAnimationFrame(render);
+      }
+      currentAnimationId = requestAnimationFrame(render);
+      container.appendChild(canvas);
+      currentElement = canvas;
+    }
+
+    // === IPC Setup ===
+    function setupIPC() {
+      const api = window.api;
+      if (!api) {
+        console.warn('[Wallpaper] window.api not available, retrying in 500ms...');
+        setTimeout(setupIPC, 500);
+        return;
+      }
+
+      console.log('[Wallpaper] IPC ready, listening for wallpaper commands');
+
+      api.onLoadWallpaper(function(_event, data) {
+        console.log('[Wallpaper] Received load command:', data);
+        switch (data.type) {
+          case 'video': loadVideo(data.path); break;
+          case 'image': loadImage(data.path); break;
+          case 'gif':   loadGif(data.path); break;
+          case 'shader': loadShader(data.width, data.height); break;
+          default: loadVideo(data.path);
+        }
+      });
+
+      api.onWallpaperControl(function(_event, action) {
+        if (currentElement && currentElement.tagName === 'VIDEO') {
+          if (action === 'pause') currentElement.pause();
+          else if (action === 'play') currentElement.play().catch(console.error);
+          else if (action === 'mute') currentElement.muted = true;
+          else if (action === 'unmute') currentElement.muted = false;
+        }
+      });
+
+      // Tell main process we're ready
+      document.title = 'WALLPAPER_READY';
+    }
+
+    // Initialize
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setupIPC();
+    } else {
+      document.addEventListener('DOMContentLoaded', setupIPC);
+    }
+  </script>
+</body>
+</html>

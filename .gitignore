@@ -5,3 +5,7 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+*.mp4
+*.webm
+*.mkv
+*.avi

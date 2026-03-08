@@ -1,6 +1,5 @@
-import { BrowserWindow, screen } from 'electron'
+import { BrowserWindow } from 'electron'
 import { join } from 'path'
-import { is } from '@electron-toolkit/utils'
 import { MonitorInfo } from './monitor-detector'
 import { getWorkerWHandle, setParentToWorkerW, spawnWorkerW } from './native/win32-helper'
 
@@ -12,9 +11,6 @@ import { getWorkerWHandle, setParentToWorkerW, spawnWorkerW } from './native/win
  * 2. Send message 0x052C to spawn a WorkerW window
  * 3. Find WorkerW behind SHELLDLL_DefView
  * 4. Set our BrowserWindow as child of that WorkerW
- *
- * Layer order (top to bottom):
- *   Desktop Icons → SHELLDLL_DefView → WorkerW (our video) → Progman
  */
 export class WallpaperEngine {
   private wallpaperWindows: Map<number, BrowserWindow> = new Map()
@@ -49,27 +45,43 @@ export class WallpaperEngine {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
         contextIsolation: true,
-        nodeIntegration: false
+        nodeIntegration: false,
+        // Allow loading local file:// videos
+        webSecurity: false
       }
     })
 
-    // Disable the window from appearing in alt-tab
     wallpaperWindow.setSkipTaskbar(true)
 
-    // Load the wallpaper renderer page
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      const url = `${process.env['ELECTRON_RENDERER_URL']}/wallpaper.html`
-      await wallpaperWindow.loadURL(url)
-    } else {
-      await wallpaperWindow.loadFile(join(__dirname, '../renderer/wallpaper.html'))
+    // Load the self-contained wallpaper.html from resources/
+    const wallpaperHtmlPath = join(__dirname, '../../resources/wallpaper.html')
+    console.log('[WallpaperEngine] Loading wallpaper HTML from:', wallpaperHtmlPath)
+
+    try {
+      await wallpaperWindow.loadFile(wallpaperHtmlPath)
+    } catch (error) {
+      console.error('[WallpaperEngine] Failed to load wallpaper.html:', error)
+      // Fallback: try from out/renderer if it exists
+      try {
+        await wallpaperWindow.loadFile(join(__dirname, '../renderer/wallpaper.html'))
+      } catch {
+        console.error('[WallpaperEngine] All wallpaper.html paths failed')
+        return
+      }
     }
 
-    // Send wallpaper data to renderer
+    // Wait for the renderer to signal readiness
+    await this.waitForRendererReady(wallpaperWindow)
+
+    // Now send wallpaper data to renderer
+    const wallpaperType = this.getWallpaperType(wallpaperPath)
+    console.log('[WallpaperEngine] Sending wallpaper:', wallpaperPath, 'type:', wallpaperType)
+
     wallpaperWindow.webContents.send('load-wallpaper', {
       path: wallpaperPath,
       width,
       height,
-      type: this.getWallpaperType(wallpaperPath)
+      type: wallpaperType
     })
 
     wallpaperWindow.show()
@@ -83,36 +95,66 @@ export class WallpaperEngine {
   }
 
   /**
+   * Wait for wallpaper renderer to set up IPC listeners.
+   * The renderer sets document.title = 'WALLPAPER_READY' when ready.
+   */
+  private waitForRendererReady(window: BrowserWindow): Promise<void> {
+    return new Promise<void>((resolve) => {
+      let checkCount = 0
+      const maxChecks = 50 // 5 seconds max wait
+
+      const check = (): void => {
+        checkCount++
+        if (window.isDestroyed()) {
+          resolve()
+          return
+        }
+
+        const title = window.getTitle()
+        if (title === 'WALLPAPER_READY' || checkCount >= maxChecks) {
+          if (checkCount >= maxChecks) {
+            console.warn('[WallpaperEngine] Renderer readiness timeout, proceeding anyway')
+          } else {
+            console.log('[WallpaperEngine] Renderer ready after', checkCount * 100, 'ms')
+          }
+          resolve()
+          return
+        }
+
+        setTimeout(check, 100)
+      }
+
+      // Give initial 200ms for DOM to load
+      setTimeout(check, 200)
+    })
+  }
+
+  /**
    * Embed the wallpaper window behind desktop icons using WorkerW technique.
-   * Falls back to 'desktop' type window if native embedding fails.
    */
   private tryEmbedBehindIcons(window: BrowserWindow): void {
     try {
-      // Spawn WorkerW if not already done
       if (this.workerWHandle === 0) {
         spawnWorkerW()
         this.workerWHandle = getWorkerWHandle()
       }
 
       if (this.workerWHandle !== 0) {
-        // Get native window handle from Electron BrowserWindow
         const nativeHandle = window.getNativeWindowHandle()
         const hwnd = nativeHandle.readUInt32LE(0)
-
-        // Set our window as child of WorkerW
         const success = setParentToWorkerW(hwnd, this.workerWHandle)
         if (success) {
-          console.log('Successfully embedded wallpaper behind desktop icons')
+          console.log('[WallpaperEngine] Embedded wallpaper behind desktop icons')
         } else {
-          console.warn('setParentToWorkerW failed, falling back to desktop type')
+          console.warn('[WallpaperEngine] setParentToWorkerW failed, using desktop type')
           window.setAlwaysOnTop(false)
         }
       } else {
-        console.warn('Could not find WorkerW handle, falling back to desktop type')
+        console.warn('[WallpaperEngine] WorkerW handle not found, using desktop type')
         window.setAlwaysOnTop(false)
       }
     } catch (error) {
-      console.error('Failed to embed wallpaper behind icons:', error)
+      console.error('[WallpaperEngine] Failed to embed:', error)
       window.setAlwaysOnTop(false)
     }
   }
