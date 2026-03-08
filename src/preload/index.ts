@@ -48,7 +48,14 @@ const api = {
   },
   onWallpaperControl: (callback: (_event: any, action: string) => void): void => {
     ipcRenderer.on('wallpaper-control', callback)
-  }
+  },
+
+  // Dock
+  dockToggle: (): Promise<boolean> => ipcRenderer.invoke('dock-toggle'),
+  dockShow: (): Promise<boolean> => ipcRenderer.invoke('dock-show'),
+  dockHide: (): Promise<boolean> => ipcRenderer.invoke('dock-hide'),
+  dockStatus: (): Promise<{ isVisible: boolean }> => ipcRenderer.invoke('dock-status'),
+  launchApp: (appId: string): Promise<boolean> => ipcRenderer.invoke('launch-app', appId)
 }
 
 if (process.contextIsolated) {

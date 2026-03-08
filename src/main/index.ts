@@ -8,6 +8,7 @@ import { PerformanceManager } from './performance-manager'
 import { setAutoStart } from './native/win32-helper'
 import { WallpaperDownloader } from './wallpaper-downloader'
 import { ThumbnailGenerator } from './thumbnail-generator'
+import { DockManager } from './dock-manager'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -17,6 +18,7 @@ let settingsStore: SettingsStore
 let performanceManager: PerformanceManager
 let wallpaperDownloader: WallpaperDownloader
 let thumbnailGenerator: ThumbnailGenerator
+let dockManager: DockManager
 
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
@@ -285,10 +287,12 @@ app.whenReady().then(() => {
   performanceManager = new PerformanceManager()
   wallpaperDownloader = new WallpaperDownloader()
   thumbnailGenerator = new ThumbnailGenerator()
+  dockManager = new DockManager()
 
   createMainWindow()
   createTray()
   setupIPC()
+  dockManager.registerIPC()
 
   // Setup performance monitoring
   performanceManager.setConfig(
@@ -336,6 +340,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   wallpaperEngine?.destroy()
   performanceManager?.destroy()
+  dockManager?.destroy()
   globalShortcut.unregisterAll()
 })
 

@@ -9,9 +9,8 @@
  * instead of ffi-napi to avoid native build complexities.
  */
 
-import { execSync, exec } from 'child_process'
+import { execSync } from 'child_process'
 import { app } from 'electron'
-import { join } from 'path'
 
 /**
  * Send the special message to Progman to spawn WorkerW.
@@ -223,5 +222,67 @@ export function isOnBattery(): boolean {
     return result === '1'
   } catch {
     return false // Assume desktop (no battery)
+  }
+}
+
+/**
+ * Auto-hide the Windows taskbar
+ */
+export function setTaskbarAutoHide(autoHide: boolean): boolean {
+  try {
+    const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class TaskbarHelper {
+    [DllImport("shell32.dll")]
+    public static extern IntPtr SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct APPBARDATA {
+        public int cbSize;
+        public IntPtr hWnd;
+        public uint uCallbackMessage;
+        public uint uEdge;
+        public RECT rc;
+        public IntPtr lParam;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT {
+        public int left, top, right, bottom;
+    }
+
+    public const uint ABM_SETSTATE = 0x0000000A;
+    public const uint ABM_GETSTATE = 0x00000004;
+    public const uint ABS_AUTOHIDE = 0x01;
+    public const uint ABS_ALWAYSONTOP = 0x02;
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr FindWindow(string className, string windowName);
+}
+"@
+
+$abd = New-Object TaskbarHelper+APPBARDATA
+$abd.cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($abd)
+$abd.hWnd = [TaskbarHelper]::FindWindow("Shell_TrayWnd", $null)
+
+if (${autoHide ? '$true' : '$false'}) {
+    $abd.lParam = [IntPtr][TaskbarHelper]::ABS_AUTOHIDE
+} else {
+    $abd.lParam = [IntPtr][TaskbarHelper]::ABS_ALWAYSONTOP
+}
+
+[TaskbarHelper]::SHAppBarMessage([TaskbarHelper]::ABM_SETSTATE, [ref]$abd)
+Write-Output "OK"
+`
+    execSync(
+      `powershell -NoProfile -ExecutionPolicy Bypass -Command "${script.replace(/\r?\n/g, ' ').replace(/"/g, '\\\\"')}"`,
+      { encoding: 'utf8', timeout: 5000 }
+    )
+    return true
+  } catch (error) {
+    console.error('Failed to set taskbar auto-hide:', error)
+    return false
   }
 }
