@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, globalShortcut } from 'electron'
+import { app, shell, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, globalShortcut } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { WallpaperEngine } from './wallpaper-engine'
@@ -6,6 +6,8 @@ import { MonitorDetector } from './monitor-detector'
 import { SettingsStore } from './settings-store'
 import { PerformanceManager } from './performance-manager'
 import { setAutoStart } from './native/win32-helper'
+import { WallpaperDownloader } from './wallpaper-downloader'
+import { ThumbnailGenerator } from './thumbnail-generator'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -13,6 +15,8 @@ let wallpaperEngine: WallpaperEngine | null = null
 let monitorDetector: MonitorDetector
 let settingsStore: SettingsStore
 let performanceManager: PerformanceManager
+let wallpaperDownloader: WallpaperDownloader
+let thumbnailGenerator: ThumbnailGenerator
 
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
@@ -156,7 +160,7 @@ function setupIPC(): void {
   })
 
   ipcMain.handle('set-setting', (_event, key: string, value: unknown) => {
-    settingsStore.set(key, value)
+    settingsStore.set(key as any, value as any)
 
     // Handle auto-start setting change
     if (key === 'autoStart') {
@@ -233,17 +237,39 @@ function setupIPC(): void {
   })
 
   ipcMain.handle('add-to-library', (_event, wallpaper: object) => {
-    const library = settingsStore.get('wallpaperLibrary', []) as object[]
+    const library = settingsStore.get('wallpaperLibrary', []) as any[]
     library.push(wallpaper)
-    settingsStore.set('wallpaperLibrary', library)
+    settingsStore.set('wallpaperLibrary' as any, library as any)
     return library
   })
 
   ipcMain.handle('remove-from-library', (_event, wallpaperPath: string) => {
     const library = settingsStore.get('wallpaperLibrary', []) as Array<{ path: string }>
     const updated = library.filter(w => w.path !== wallpaperPath)
-    settingsStore.set('wallpaperLibrary', updated)
+    settingsStore.set('wallpaperLibrary', updated as any)
     return updated
+  })
+
+  // Download wallpaper from URL
+  ipcMain.handle('download-wallpaper', async (_event, url: string) => {
+    try {
+      const filePath = await wallpaperDownloader.download(url, (progress) => {
+        mainWindow?.webContents.send('download-progress', progress)
+      })
+      return { success: true, filePath }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // Generate thumbnail
+  ipcMain.handle('generate-thumbnail', async (_event, filePath: string) => {
+    try {
+      const thumbnailPath = await thumbnailGenerator.generateThumbnail(filePath)
+      return { success: true, thumbnailPath }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
   })
 }
 
@@ -257,6 +283,8 @@ app.whenReady().then(() => {
   settingsStore = new SettingsStore()
   monitorDetector = new MonitorDetector()
   performanceManager = new PerformanceManager()
+  wallpaperDownloader = new WallpaperDownloader()
+  thumbnailGenerator = new ThumbnailGenerator()
 
   createMainWindow()
   createTray()
