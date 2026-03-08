@@ -10,6 +10,9 @@
  */
 
 import { execSync } from 'child_process'
+import { writeFileSync, unlinkSync } from 'fs'
+import { join } from 'path'
+import { tmpdir } from 'os'
 import { app } from 'electron'
 
 /**
@@ -226,63 +229,64 @@ export function isOnBattery(): boolean {
 }
 
 /**
- * Auto-hide the Windows taskbar
+ * Auto-hide the Windows taskbar using a temp .ps1 file for reliable execution
  */
 export function setTaskbarAutoHide(autoHide: boolean): boolean {
+  const scriptPath = join(tmpdir(), 'lw-taskbar-helper.ps1')
   try {
-    const script = `
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class TaskbarHelper {
-    [DllImport("shell32.dll")]
-    public static extern IntPtr SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
+    const stateConst = autoHide ? 'ABS_AUTOHIDE' : 'ABS_ALWAYSONTOP'
+    const script = [
+      'Add-Type @"',
+      'using System;',
+      'using System.Runtime.InteropServices;',
+      'public class TaskbarHelper2 {',
+      '    [DllImport("shell32.dll")]',
+      '    public static extern IntPtr SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);',
+      '',
+      '    [StructLayout(LayoutKind.Sequential)]',
+      '    public struct APPBARDATA {',
+      '        public int cbSize;',
+      '        public IntPtr hWnd;',
+      '        public uint uCallbackMessage;',
+      '        public uint uEdge;',
+      '        public RECT rc;',
+      '        public IntPtr lParam;',
+      '    }',
+      '',
+      '    [StructLayout(LayoutKind.Sequential)]',
+      '    public struct RECT {',
+      '        public int left, top, right, bottom;',
+      '    }',
+      '',
+      '    public const uint ABM_SETSTATE = 0x0000000A;',
+      '    public const uint ABS_AUTOHIDE = 0x01;',
+      '    public const uint ABS_ALWAYSONTOP = 0x02;',
+      '',
+      '    [DllImport("user32.dll")]',
+      '    public static extern IntPtr FindWindow(string className, string windowName);',
+      '}',
+      '"@',
+      '',
+      '$abd = New-Object TaskbarHelper2+APPBARDATA',
+      '$abd.cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($abd)',
+      '$abd.hWnd = [TaskbarHelper2]::FindWindow("Shell_TrayWnd", $null)',
+      `$abd.lParam = [IntPtr][TaskbarHelper2]::${stateConst}`,
+      '[TaskbarHelper2]::SHAppBarMessage([TaskbarHelper2]::ABM_SETSTATE, [ref]$abd)',
+      'Write-Output "OK"'
+    ].join('\r\n')
 
-    [StructLayout(LayoutKind.Sequential)]
-    public struct APPBARDATA {
-        public int cbSize;
-        public IntPtr hWnd;
-        public uint uCallbackMessage;
-        public uint uEdge;
-        public RECT rc;
-        public IntPtr lParam;
-    }
+    writeFileSync(scriptPath, script, 'utf8')
+    const result = execSync(
+      `powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`,
+      { encoding: 'utf8', timeout: 8000 }
+    ).trim()
 
-    [StructLayout(LayoutKind.Sequential)]
-    public struct RECT {
-        public int left, top, right, bottom;
-    }
-
-    public const uint ABM_SETSTATE = 0x0000000A;
-    public const uint ABM_GETSTATE = 0x00000004;
-    public const uint ABS_AUTOHIDE = 0x01;
-    public const uint ABS_ALWAYSONTOP = 0x02;
-
-    [DllImport("user32.dll")]
-    public static extern IntPtr FindWindow(string className, string windowName);
-}
-"@
-
-$abd = New-Object TaskbarHelper+APPBARDATA
-$abd.cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($abd)
-$abd.hWnd = [TaskbarHelper]::FindWindow("Shell_TrayWnd", $null)
-
-if (${autoHide ? '$true' : '$false'}) {
-    $abd.lParam = [IntPtr][TaskbarHelper]::ABS_AUTOHIDE
-} else {
-    $abd.lParam = [IntPtr][TaskbarHelper]::ABS_ALWAYSONTOP
-}
-
-[TaskbarHelper]::SHAppBarMessage([TaskbarHelper]::ABM_SETSTATE, [ref]$abd)
-Write-Output "OK"
-`
-    execSync(
-      `powershell -NoProfile -ExecutionPolicy Bypass -Command "${script.replace(/\r?\n/g, ' ').replace(/"/g, '\\\\"')}"`,
-      { encoding: 'utf8', timeout: 5000 }
-    )
+    console.log('[Win32Helper] setTaskbarAutoHide:', autoHide, 'result:', result)
     return true
   } catch (error) {
     console.error('Failed to set taskbar auto-hide:', error)
     return false
+  } finally {
+    try { unlinkSync(scriptPath) } catch { /* ignore cleanup errors */ }
   }
 }

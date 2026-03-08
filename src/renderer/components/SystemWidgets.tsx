@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 
+const appStartTime = Date.now()
+
 interface SystemData {
   cpu: number
   ram: { used: number; total: number; percent: number }
@@ -35,7 +37,7 @@ function SystemWidgets(): JSX.Element {
           total: totalRam,
           percent: (usedRam / totalRam) * 100
         },
-        uptime: formatUptime(process.uptime?.() || Math.floor(Math.random() * 36000)),
+        uptime: formatUptime(Math.floor((Date.now() - appStartTime) / 1000)),
         time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         date: now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
       })

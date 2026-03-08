@@ -27,16 +27,17 @@ export class DockManager {
     }
 
     const primaryDisplay = screen.getPrimaryDisplay()
-    const { width } = primaryDisplay.workAreaSize
     const bounds = primaryDisplay.bounds
 
-    const dockHeight = 64
-    const dockY = bounds.y + bounds.height - dockHeight
+    const dockHeight = 80
+    const dockY = bounds.y + bounds.height - dockHeight - 6
+
+    console.log('[DockManager] Creating dock:', { bounds, dockHeight, dockY })
 
     this.dockWindow = new BrowserWindow({
       x: bounds.x,
       y: dockY,
-      width: width,
+      width: bounds.width,
       height: dockHeight,
       frame: false,
       transparent: true,
@@ -60,8 +61,10 @@ export class DockManager {
 
     // Load dock HTML
     const dockHtmlPath = join(__dirname, '../../resources/dock.html')
+    console.log('[DockManager] Loading dock from:', dockHtmlPath)
     try {
       await this.dockWindow.loadFile(dockHtmlPath)
+      console.log('[DockManager] dock.html loaded successfully')
     } catch (error) {
       console.error('[DockManager] Failed to load dock.html:', error)
       return
@@ -72,7 +75,7 @@ export class DockManager {
     // Auto-hide Windows taskbar
     this.hideTaskbar()
 
-    console.log('[DockManager] Dock shown at y:', dockY)
+    console.log('[DockManager] Dock shown at y:', dockY, 'width:', bounds.width)
   }
 
   /**

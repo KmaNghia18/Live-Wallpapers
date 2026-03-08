@@ -16,14 +16,14 @@
     "lint": "eslint . --ext .ts,.tsx"
   },
   "dependencies": {
-    "@electron-toolkit/preload": "^3.0.1",
-    "@electron-toolkit/utils": "^3.0.0",
     "electron-store": "^8.1.0",
     "fluent-ffmpeg": "^2.1.3"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-ts": "^2.0.0",
+    "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@electron-toolkit/utils": "^4.0.0",
     "@types/fluent-ffmpeg": "^2.1.24",
     "@types/node": "^20.11.16",
     "@types/react": "^18.2.55",
@@ -31,7 +31,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "electron": "^28.2.0",
     "electron-builder": "^24.9.1",
-    "electron-vite": "^2.0.0",
+    "electron-vite": "^5.0.0",
     "eslint": "^8.56.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

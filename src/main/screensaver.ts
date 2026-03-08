@@ -5,9 +5,8 @@
  * Features: fade-in animation, grace period, idle detection.
  */
 
-import { BrowserWindow, powerMonitor, screen } from 'electron'
+import { BrowserWindow, powerMonitor, screen, app } from 'electron'
 import { join } from 'path'
-import { is } from '@electron-toolkit/utils'
 
 export interface ScreensaverConfig {
   enabled: boolean
@@ -96,7 +95,7 @@ export class ScreensaverManager {
     })
 
     // Load screensaver page
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
       this.screensaverWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/wallpaper.html`)
     } else {
       this.screensaverWindow.loadFile(join(__dirname, '../renderer/wallpaper.html'))

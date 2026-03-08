@@ -1,6 +1,5 @@
 import { app, shell, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, globalShortcut } from 'electron'
 import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { WallpaperEngine } from './wallpaper-engine'
 import { MonitorDetector } from './monitor-detector'
 import { SettingsStore } from './settings-store'
@@ -55,7 +54,7 @@ function createMainWindow(): void {
     return { action: 'deny' }
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+  if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
@@ -197,6 +196,9 @@ function setupIPC(): void {
       await wallpaperEngine.setWallpaper(wallpaperPath, targetMonitor)
       settingsStore.set('currentWallpaper', wallpaperPath)
 
+      // Auto-show custom dock & hide Windows taskbar
+      dockManager.show().catch(console.error)
+
       return { success: true }
     } catch (error) {
       return { success: false, error: String(error) }
@@ -276,10 +278,10 @@ function setupIPC(): void {
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.livewallpaper.app')
+  app.setAppUserModelId('com.livewallpaper.app')
 
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
+  app.on('browser-window-created', (_) => {
+    // Window created
   })
 
   settingsStore = new SettingsStore()
@@ -321,14 +323,19 @@ app.whenReady().then(() => {
       wallpaperEngine?.play()
     }
   })
+  globalShortcut.register('Ctrl+Alt+D', () => {
+    dockManager.toggle()
+  })
 
-  // Auto-restore wallpaper
+  // Auto-restore wallpaper & dock
   const lastWallpaper = settingsStore.get('currentWallpaper', null) as string | null
   if (lastWallpaper) {
     const monitors = monitorDetector.getAllMonitors()
     if (monitors.length > 0) {
       wallpaperEngine = new WallpaperEngine()
-      wallpaperEngine.setWallpaper(lastWallpaper, monitors[0]).catch(console.error)
+      wallpaperEngine.setWallpaper(lastWallpaper, monitors[0])
+        .then(() => dockManager.show())
+        .catch(console.error)
     }
   }
 })
