@@ -61,15 +61,6 @@ export class DockManager {
     // Keep dock above all windows including fullscreen
     this.dockWindow.setAlwaysOnTop(true, 'screen-saver')
 
-    // Blur immediately after any focus to avoid stealing focus from user's apps
-    this.dockWindow.on('focus', () => {
-      setTimeout(() => {
-        if (this.dockWindow && !this.dockWindow.isDestroyed()) {
-          this.dockWindow.blur()
-        }
-      }, 50)
-    })
-
     // Load dock HTML
     const dockHtmlPath = join(__dirname, '../../resources/dock.html')
     console.log('[DockManager] Loading dock from:', dockHtmlPath)
