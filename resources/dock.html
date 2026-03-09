@@ -282,26 +282,30 @@
 
 <script>
 // ═══════════════════════════════════════════════
-// CLICK-THROUGH: throttled mousemove IPC
+// CLICK-THROUGH: Y-coordinate based (no flickering!)
+// Window = 280px. Dock bar = bottom 80px (Y >= 200).
+// Using Y-position is deterministic — it doesn't change
+// when setIgnoreMouseEvents toggles, so no oscillation.
 // ═══════════════════════════════════════════════
-var _overDock = false;
-var _throttlePending = false;
+var WIN_H  = 280;
+var DOCK_H = 80;
+var _inter = false;
+
+function sendMouseInteractive(v) {
+  if (v === _inter) return;
+  _inter = v;
+  if (window.api && window.api.setDockMouseEvents) window.api.setDockMouseEvents(v);
+}
 
 document.addEventListener('mousemove', function(e) {
-  if (_throttlePending) return;          // max one check per 32ms (~30fps) — enough for UX, no lag
-  _throttlePending = true;
-  setTimeout(function() { _throttlePending = false; }, 32);
-
-  var el = document.elementFromPoint(e.clientX, e.clientY);
-  var over = !!(el && el !== document.body && el !== document.documentElement);
-  if (over !== _overDock) {
-    _overDock = over;
-    if (window.api && window.api.setDockMouseEvents) window.api.setDockMouseEvents(over);
-  }
+  var inDockBar    = e.clientY >= WIN_H - DOCK_H;          // bottom 80px
+  var overlayOpen  = overlay && overlay.classList.contains('active');
+  var inOverlay    = overlayOpen && e.clientY < WIN_H - DOCK_H;
+  sendMouseInteractive(inDockBar || inOverlay);
 }, { passive: true });
 
 document.addEventListener('mouseleave', function() {
-  if (_overDock) { _overDock = false; if (window.api && window.api.setDockMouseEvents) window.api.setDockMouseEvents(false); }
+  sendMouseInteractive(false);
 }, { passive: true });
 
 // ═══════════════════════════════════════════════
