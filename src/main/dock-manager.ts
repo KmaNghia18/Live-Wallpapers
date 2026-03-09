@@ -29,16 +29,17 @@ export class DockManager {
     const primaryDisplay = electron.screen.getPrimaryDisplay()
     const bounds = primaryDisplay.bounds
 
-    const dockHeight = 80
-    const dockY = bounds.y + bounds.height - dockHeight - 6
+    const dockHeight = 80        // Visible dock bar height
+    const windowHeight = 280     // Full window height (includes search overlay space above)
+    const dockY = bounds.y + bounds.height - windowHeight - 2
 
-    console.log('[DockManager] Creating dock:', { bounds, dockHeight, dockY })
+    console.log('[DockManager] Creating dock:', { bounds, dockHeight, windowHeight, dockY })
 
     this.dockWindow = new electron.BrowserWindow({
       x: bounds.x,
       y: dockY,
       width: bounds.width,
-      height: dockHeight,
+      height: windowHeight,
       frame: false,
       transparent: true,
       resizable: false,
