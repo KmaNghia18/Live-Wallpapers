@@ -18,6 +18,7 @@ let performanceManager: PerformanceManager
 let wallpaperDownloader: WallpaperDownloader
 let thumbnailGenerator: ThumbnailGenerator
 let dockManager: DockManager
+let isQuitting = false // flag to distinguish real quit vs minimize-to-tray
 
 function createMainWindow(): void {
   mainWindow = new BrowserWindow({
@@ -43,6 +44,8 @@ function createMainWindow(): void {
   })
 
   mainWindow.on('close', (event) => {
+    // If isQuitting flag set (from tray Exit), allow close
+    if (isQuitting) return
     if (settingsStore.get('minimizeToTray', true)) {
       event.preventDefault()
       mainWindow?.hide()
@@ -118,6 +121,7 @@ function createTray(): void {
       {
         label: '❌ Exit',
         click: (): void => {
+          isQuitting = true
           wallpaperEngine?.destroy()
           app.quit()
         }
