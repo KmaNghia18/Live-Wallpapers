@@ -16,84 +16,157 @@
       width: 100vw;
       height: 100vh;
       position: relative;
+      background: #000;
     }
-    video, img {
+
+    /* Two layers for crossfade. Layer B sits on top. */
+    .wp-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .wp-layer video,
+    .wp-layer img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       position: absolute;
-      top: 0;
-      left: 0;
+      inset: 0;
     }
-    canvas {
+    .wp-layer canvas {
       width: 100%;
       height: 100%;
       position: absolute;
-      top: 0;
-      left: 0;
+      inset: 0;
     }
+
+    /* Crossfade: top layer fades in, bottom layer waits */
+    #layer-a { z-index: 1; }
+    #layer-b { z-index: 2; opacity: 0; transition: opacity 1.2s ease-in-out; }
+    #layer-b.visible { opacity: 1; }
   </style>
 </head>
 <body>
-  <div id="wallpaper-container"></div>
-  <script>
-    const container = document.getElementById('wallpaper-container');
-    let currentElement = null;
+  <div id="wallpaper-container">
+    <div id="layer-a" class="wp-layer"></div>
+    <div id="layer-b" class="wp-layer"></div>
+  </div>
 
-    function clearContainer() {
-      while (container.firstChild) {
-        const child = container.firstChild;
+  <script>
+    var layerA = document.getElementById('layer-a');
+    var layerB = document.getElementById('layer-b');
+
+    // Which layer is currently on top (visible, z-index 2)
+    var topLayer = layerB;
+    var botLayer = layerA;
+
+    var FADE_MS = 1200; // crossfade duration in ms (matches CSS transition)
+
+    // --- Helpers ---
+    function clearLayer(layer) {
+      var children = Array.from(layer.children);
+      children.forEach(function(child) {
         if (child.tagName === 'VIDEO') {
           child.pause();
           child.src = '';
           child.load();
         }
-        container.removeChild(child);
-      }
-      currentElement = null;
+      });
+      layer.innerHTML = '';
     }
 
-    function loadVideo(path) {
-      clearContainer();
-      const video = document.createElement('video');
+    function createVideo(path) {
+      var video = document.createElement('video');
       video.src = 'file://' + path;
       video.autoplay = true;
       video.loop = true;
       video.muted = true;
       video.playsInline = true;
-      video.style.width = '100%';
-      video.style.height = '100%';
-      video.style.objectFit = 'cover';
-      video.addEventListener('loadeddata', () => video.play().catch(console.error));
-      container.appendChild(video);
-      currentElement = video;
+      video.addEventListener('loadeddata', function() {
+        video.play().catch(function() {});
+      });
+      return video;
     }
 
-    function loadImage(path) {
-      clearContainer();
-      const img = document.createElement('img');
+    function createImage(path) {
+      var img = document.createElement('img');
       img.src = 'file://' + path;
-      img.style.width = '100%';
-      img.style.height = '100%';
-      img.style.objectFit = 'cover';
-      container.appendChild(img);
-      currentElement = img;
+      return img;
     }
 
-    // IPC Listeners
+    // --- Crossfade transition ---
+    // 1. Load new content into the BOTTOM (hidden) layer
+    // 2. Swap: fade top→out by making it bottom, fade bottom→in by making it top
+    var _swapTimeout = null;
+
+    function transitionTo(type, path) {
+      // Clear any pending swap
+      if (_swapTimeout) { clearTimeout(_swapTimeout); _swapTimeout = null; }
+
+      // Determine the "next" layer (currently hidden one)
+      var nextLayer = (topLayer === layerB) ? layerA : layerB;
+      var prevLayer = topLayer;
+
+      // Load content into the next layer (currently behind)
+      clearLayer(nextLayer);
+      var el = (type === 'image' || type === 'gif') ? createImage(path) : createVideo(path);
+      nextLayer.appendChild(el);
+
+      // Bring next layer to front and fade it in
+      nextLayer.style.zIndex = '2';
+      prevLayer.style.zIndex = '1';
+
+      // Force reflow so transition fires
+      void nextLayer.offsetWidth;
+
+      if (nextLayer === layerB) {
+        layerB.classList.add('visible');
+      } else {
+        // layerA is going to top: we manually handle opacity via inline style
+        layerA.style.transition = 'opacity ' + (FADE_MS / 1000) + 's ease-in-out';
+        layerA.style.opacity = '1';
+        // And fade out layerB (currently prev)
+        layerB.classList.remove('visible');
+      }
+
+      // After transition, clean up the old layer (free memory)
+      _swapTimeout = setTimeout(function() {
+        clearLayer(prevLayer);
+        prevLayer.style.zIndex = '';
+        prevLayer.style.opacity = '';
+        _swapTimeout = null;
+      }, FADE_MS + 100);
+
+      // Update tracking
+      topLayer = nextLayer;
+      botLayer = prevLayer;
+    }
+
+    // Reset layerA opacity management on first call
+    layerA.style.transition = 'opacity ' + (FADE_MS / 1000) + 's ease-in-out';
+    layerA.style.opacity = '1';
+
+    var currentElement = null;
+
+    // Control playing video (pause/play)
+    function getActiveVideo() {
+      var top = topLayer;
+      return top.querySelector('video');
+    }
+
+    // --- IPC Listeners ---
     if (window.api) {
-      window.api.onLoadWallpaper((_event, data) => {
-        switch (data.type) {
-          case 'video': loadVideo(data.path); break;
-          case 'image': case 'gif': loadImage(data.path); break;
-          default: loadVideo(data.path);
-        }
+      window.api.onLoadWallpaper(function(_event, data) {
+        var type = data.type || 'video';
+        transitionTo(type, data.path);
       });
 
-      window.api.onWallpaperControl((_event, action) => {
-        if (currentElement && currentElement.tagName === 'VIDEO') {
-          if (action === 'pause') currentElement.pause();
-          else if (action === 'play') currentElement.play().catch(console.error);
+      window.api.onWallpaperControl(function(_event, action) {
+        var vid = getActiveVideo();
+        if (vid) {
+          if (action === 'pause') vid.pause();
+          else if (action === 'play') vid.play().catch(function() {});
         }
       });
     }
