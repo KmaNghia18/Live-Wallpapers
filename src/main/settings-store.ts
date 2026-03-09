@@ -1,4 +1,5 @@
-import Store from 'electron-store'
+import type StoreType from 'electron-store'
+const Store = require('electron-store')
 
 interface StoreSchema {
   currentWallpaper: string | null
@@ -21,6 +22,8 @@ interface StoreSchema {
   // Hotkey settings
   hotkeyNext: string
   hotkeyPlayPause: string
+  // Feature flags
+  enableCustomDock: boolean
 }
 
 export interface WallpaperItem {
@@ -55,14 +58,15 @@ const defaults: StoreSchema = {
   screensaverUseCurrentWallpaper: true,
   screensaverWallpaper: null,
   hotkeyNext: 'Ctrl+Alt+N',
-  hotkeyPlayPause: 'Ctrl+Alt+P'
+  hotkeyPlayPause: 'Ctrl+Alt+P',
+  enableCustomDock: true
 }
 
 export class SettingsStore {
-  private store: Store<StoreSchema>
+  private store: StoreType<StoreSchema>
 
   constructor() {
-    this.store = new Store<StoreSchema>({
+    this.store = new Store({
       name: 'live-wallpaper-settings',
       defaults
     })

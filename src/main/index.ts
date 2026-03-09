@@ -165,7 +165,7 @@ function setupIPC(): void {
 
     // Handle auto-start setting change
     if (key === 'autoStart') {
-      setAutoStart(value as boolean)
+      setAutoStart(value as boolean, app.getPath('exe'))
     }
 
     // Update performance manager config
@@ -174,6 +174,15 @@ function setupIPC(): void {
         settingsStore.get('pauseOnFullscreen', true) as boolean,
         settingsStore.get('pauseOnBattery', true) as boolean
       )
+    }
+
+    // Toggle custom dock explicitly when setting changes
+    if (key === 'enableCustomDock') {
+      if (value) {
+        dockManager.show().catch(console.error)
+      } else {
+        dockManager.hide()
+      }
     }
 
     return true
@@ -196,8 +205,10 @@ function setupIPC(): void {
       await wallpaperEngine.setWallpaper(wallpaperPath, targetMonitor)
       settingsStore.set('currentWallpaper', wallpaperPath)
 
-      // Auto-show custom dock & hide Windows taskbar
-      dockManager.show().catch(console.error)
+      // Only show custom dock if enabled in settings
+      if (settingsStore.get('enableCustomDock', true)) {
+        dockManager.show().catch(console.error)
+      }
 
       return { success: true }
     } catch (error) {
@@ -334,7 +345,11 @@ app.whenReady().then(() => {
     if (monitors.length > 0) {
       wallpaperEngine = new WallpaperEngine()
       wallpaperEngine.setWallpaper(lastWallpaper, monitors[0])
-        .then(() => dockManager.show())
+        .then(() => {
+          if (settingsStore.get('enableCustomDock', true)) {
+            dockManager.show()
+          }
+        })
         .catch(console.error)
     }
   }

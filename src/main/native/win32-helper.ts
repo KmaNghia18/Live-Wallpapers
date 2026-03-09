@@ -13,7 +13,6 @@ import { execSync } from 'child_process'
 import { writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import { app } from 'electron'
 
 /**
  * Send the special message to Progman to spawn WorkerW.
@@ -192,9 +191,8 @@ Write-Output $isFS
 /**
  * Register app to start with Windows via Registry
  */
-export function setAutoStart(enable: boolean): boolean {
+export function setAutoStart(enable: boolean, appPath: string): boolean {
   try {
-    const appPath = app.getPath('exe')
     if (enable) {
       execSync(
         `reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "LiveWallpaper" /t REG_SZ /d "${appPath}" /f`,

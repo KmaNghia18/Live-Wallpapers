@@ -6,13 +6,13 @@
  * and system tray icons. Replaces the Windows taskbar.
  */
 
-import { BrowserWindow, screen, ipcMain } from 'electron'
+import * as electron from 'electron'
 import { join } from 'path'
-import { exec } from 'child_process'
+import * as cp from 'child_process'
 import { setTaskbarAutoHide } from './native/win32-helper'
 
 export class DockManager {
-  private dockWindow: BrowserWindow | null = null
+  private dockWindow: electron.BrowserWindow | null = null
   private isVisible: boolean = false
   private taskbarHidden: boolean = false
 
@@ -26,7 +26,7 @@ export class DockManager {
       return
     }
 
-    const primaryDisplay = screen.getPrimaryDisplay()
+    const primaryDisplay = electron.screen.getPrimaryDisplay()
     const bounds = primaryDisplay.bounds
 
     const dockHeight = 80
@@ -34,7 +34,7 @@ export class DockManager {
 
     console.log('[DockManager] Creating dock:', { bounds, dockHeight, dockY })
 
-    this.dockWindow = new BrowserWindow({
+    this.dockWindow = new electron.BrowserWindow({
       x: bounds.x,
       y: dockY,
       width: bounds.width,
@@ -135,27 +135,27 @@ export class DockManager {
    * Register IPC handlers for dock
    */
   registerIPC(): void {
-    ipcMain.handle('dock-toggle', () => {
+    electron.ipcMain.handle('dock-toggle', () => {
       this.toggle()
       return this.isVisible
     })
 
-    ipcMain.handle('dock-show', async () => {
+    electron.ipcMain.handle('dock-show', async () => {
       await this.show()
       return true
     })
 
-    ipcMain.handle('dock-hide', () => {
+    electron.ipcMain.handle('dock-hide', () => {
       this.hide()
       return true
     })
 
-    ipcMain.handle('dock-status', () => {
+    electron.ipcMain.handle('dock-status', () => {
       return { isVisible: this.isVisible }
     })
 
     // App launcher from dock
-    ipcMain.handle('launch-app', (_event, appId: string) => {
+    electron.ipcMain.handle('launch-app', (_event, appId: string) => {
       this.launchApp(appId)
       return true
     })
@@ -177,11 +177,11 @@ export class DockManager {
 
     const cmd = appCommands[appId]
     if (cmd) {
-      exec(cmd, (error) => {
+      cp.exec(cmd, (error) => {
         if (error) {
           // Fallback for browser
           if (appId === 'browser') {
-            exec('start "" "https://www.google.com"')
+            cp.exec('start "" "https://www.google.com"')
           }
           console.error(`[DockManager] Failed to launch ${appId}:`, error)
         }

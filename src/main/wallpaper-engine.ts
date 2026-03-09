@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import { join } from 'path'
 import { MonitorInfo } from './monitor-detector'
 import { getWorkerWHandle, setParentToWorkerW, spawnWorkerW } from './native/win32-helper'
@@ -18,6 +18,31 @@ export class WallpaperEngine {
   private currentWallpaper: string | null = null
   private workerWHandle: number = 0
 
+  constructor() {
+    // Listen for display metric changes (e.g. taskbar auto-hide toggled)
+    screen.on('display-metrics-changed', this.handleMetricsChanged)
+  }
+
+  private handleMetricsChanged = (_event: Electron.Event, display: Electron.Display, changedMetrics: string[]): void => {
+    // If working area or bounds changed (often due to taskbar toggle)
+    if (changedMetrics.includes('workArea') || changedMetrics.includes('bounds')) {
+      const window = this.wallpaperWindows.get(display.id)
+      if (window && !window.isDestroyed()) {
+        const { x, y } = display.bounds
+        const { width, height } = display.size
+        window.setBounds({ x, y, width, height })
+        
+        // Notify renderer of new size
+        window.webContents.send('load-wallpaper', {
+          path: this.currentWallpaper,
+          width,
+          height,
+          type: this.currentWallpaper ? this.getWallpaperType(this.currentWallpaper) : 'video'
+        })
+      }
+    }
+  }
+
   async setWallpaper(wallpaperPath: string, monitor: MonitorInfo): Promise<void> {
     // Destroy existing wallpaper window for this monitor
     const existing = this.wallpaperWindows.get(monitor.id)
@@ -25,7 +50,8 @@ export class WallpaperEngine {
       existing.close()
     }
 
-    const { x, y, width, height } = monitor.bounds
+    const { x, y } = monitor.bounds
+    const { width, height } = monitor.size
 
     const wallpaperWindow = new BrowserWindow({
       x,
@@ -203,5 +229,6 @@ export class WallpaperEngine {
     })
     this.wallpaperWindows.clear()
     this._isPlaying = false
+    screen.removeListener('display-metrics-changed', this.handleMetricsChanged)
   }
 }

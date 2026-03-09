@@ -141,6 +141,12 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
         <Toggle settingKey="pauseOnBattery" label="Battery Saver" description="Reduce quality and FPS when on battery power" />
       </div>
 
+      {/* Dock (Custom Feature) */}
+      <div className="settings__group">
+        <div className="settings__group-title">🖥️ Desktop Dock</div>
+        <Toggle settingKey="enableCustomDock" label="Enable Custom Dock" description="Replace Windows taskbar with a premium macOS-style dock" />
+      </div>
+
       {/* Hotkeys */}
       <div className="settings__group">
         <div className="settings__group-title">⌨️ Hotkeys</div>
