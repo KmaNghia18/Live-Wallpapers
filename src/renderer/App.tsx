@@ -194,7 +194,13 @@ function App(): JSX.Element {
       case 'monitors':
         return <MonitorInfo />
       case 'playlists':
-        return <PlaylistEditor wallpapers={wallpapers} />
+        return (
+          <PlaylistEditor
+            wallpapers={wallpapers}
+            currentWallpaper={currentWallpaper}
+            onSetWallpaper={handleSetWallpaper}
+          />
+        )
       case 'visualizer':
         return <AudioVisualizerSettings />
       case 'system':
