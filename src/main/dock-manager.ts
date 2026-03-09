@@ -173,14 +173,14 @@ export class DockManager {
       }
     })
 
-    // Open file dialog for music player
+    // Open file dialog for music player (multi-select)
     electron.ipcMain.handle('dock-open-audio', async () => {
       const result = await electron.dialog.showOpenDialog({
-        title: 'Choose audio file',
-        filters: [{ name: 'Audio', extensions: ['mp3','ogg','wav','flac','m4a','aac'] }],
-        properties: ['openFile']
+        title: 'Choose audio files',
+        filters: [{ name: 'Audio', extensions: ['mp3','ogg','wav','flac','m4a','aac','opus','wma'] }],
+        properties: ['openFile', 'multiSelections']
       })
-      return result.canceled ? null : result.filePaths[0]
+      return result.canceled ? null : result.filePaths
     })
 
     // App launcher from dock
