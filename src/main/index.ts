@@ -185,6 +185,12 @@ function setupIPC(): void {
       }
     }
 
+    // Rebuild dock with new height if dock is visible
+    if (key === 'dockHeight' && settingsStore.get('enableCustomDock', false)) {
+      dockManager.hide()
+      setTimeout(() => dockManager.show().catch(console.error), 200)
+    }
+
     return true
   })
 
@@ -206,7 +212,7 @@ function setupIPC(): void {
       settingsStore.set('currentWallpaper', wallpaperPath)
 
       // Only show custom dock if enabled in settings
-      if (settingsStore.get('enableCustomDock', true)) {
+      if (settingsStore.get('enableCustomDock', false)) {
         dockManager.show().catch(console.error)
       }
 
@@ -346,7 +352,7 @@ app.whenReady().then(() => {
       wallpaperEngine = new WallpaperEngine()
       wallpaperEngine.setWallpaper(lastWallpaper, monitors[0])
         .then(() => {
-          if (settingsStore.get('enableCustomDock', true)) {
+          if (settingsStore.get('enableCustomDock', false)) {
             dockManager.show()
           }
         })

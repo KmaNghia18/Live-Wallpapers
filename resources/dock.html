@@ -1,418 +1,596 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="UTF-8" />
-  <title>Ambient Widget</title>
+  <title>Dock</title>
   <style>
-    @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500;600&family=JetBrains+Mono:wght@200;300;400&display=swap");
+    @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100;200;300;400;500&family=JetBrains+Mono:wght@200;300;400&display=swap");
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       background: transparent;
       overflow: hidden;
       font-family: "Outfit", sans-serif;
       user-select: none;
-      cursor: default;
+      -webkit-app-region: no-drag;
     }
 
-    .widget-wrap {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 16px;
+    #canvas {
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 0;
     }
 
-    /* === Main floating bar === */
-    .bar {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0;
-      padding: 0;
-      border-radius: 22px;
-      position: relative;
-      animation: barReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+    /* ─── Layout ─── */
+    .dock-root {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: flex-end;
+      gap: 6px;
+      padding-bottom: 8px;
+      z-index: 1;
     }
 
-    @keyframes barReveal {
-      from { opacity: 0; transform: translateY(20px) scale(0.95); filter: blur(8px); }
+    /* Search bar (hidden by default, slides up on Ctrl+Space) */
+    .search-wrap {
+      width: 480px;
+      animation: slideUp 0.35s cubic-bezier(0.16,1,0.3,1) both;
+      display: none;
+    }
+    .search-wrap.open { display: block; }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(14px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .search-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 18px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(14,9,30,0.82) 0%, rgba(20,12,44,0.78) 100%);
+      backdrop-filter: blur(50px) saturate(200%);
+      -webkit-backdrop-filter: blur(50px) saturate(200%);
+      border: 1px solid rgba(168,130,255,0.22);
+      box-shadow: 0 8px 48px rgba(0,0,0,0.55), 0 0 80px rgba(108,80,220,0.08),
+                  inset 0 1px 0 rgba(200,160,255,0.12);
+    }
+
+    .search-icon {
+      width: 16px; height: 16px;
+      color: rgba(168,130,255,0.6); flex-shrink: 0;
+    }
+
+    .search-input {
+      flex: 1; background: transparent;
+      border: none; outline: none;
+      font-family: "Outfit", sans-serif;
+      font-size: 14px; font-weight: 300;
+      color: rgba(255,255,255,0.9);
+      letter-spacing: 0.3px;
+      caret-color: rgba(168,130,255,0.9);
+    }
+    .search-input::placeholder { color: rgba(255,255,255,0.25); }
+
+    .search-hint {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10px; color: rgba(168,130,255,0.35);
+      white-space: nowrap; flex-shrink: 0;
+    }
+
+    /* Search results */
+    .search-results {
+      margin-top: 6px;
+      display: none;
+      flex-direction: column; gap: 2px;
+      padding: 8px;
+      border-radius: 14px;
+      background: rgba(10,6,22,0.9);
+      backdrop-filter: blur(40px);
+      border: 1px solid rgba(140,100,255,0.14);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+    .search-results.has-results { display: flex; }
+
+    .search-result-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      color: rgba(255,255,255,0.75);
+      font-size: 13px;
+    }
+    .search-result-item:hover, .search-result-item.active {
+      background: rgba(140,100,255,0.18);
+      color: #fff;
+    }
+    .search-result-item svg {
+      width: 15px; height: 15px;
+      color: rgba(168,130,255,0.55);
+      flex-shrink: 0;
+    }
+    .search-result-item:hover svg { color: rgba(168,130,255,0.9); }
+
+    /* ─── Main dock bar ─── */
+    .dock-bar {
+      display: flex; align-items: center; gap: 5px;
+      padding: 0 5px;
+      animation: revealBar 0.9s cubic-bezier(0.16,1,0.3,1) both;
+    }
+    @keyframes revealBar {
+      from { opacity: 0; transform: translateY(28px) scale(0.9); filter: blur(12px); }
       to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
     }
 
-    /* === Glass pill container === */
+    /* ─── Glass pill ─── */
     .pill {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 20px;
-      background: rgba(8, 6, 18, 0.5);
-      backdrop-filter: blur(30px) saturate(180%);
-      -webkit-backdrop-filter: blur(30px) saturate(180%);
-      border: 1px solid rgba(168, 130, 255, 0.08);
+      display: flex; align-items: center; gap: 5px;
+      padding: 9px 14px;
       border-radius: 18px;
-      position: relative;
-      overflow: hidden;
+      position: relative; overflow: hidden;
+      background: linear-gradient(145deg,
+        rgba(12,8,26,0.74) 0%, rgba(18,10,38,0.68) 50%, rgba(9,5,22,0.74) 100%
+      );
+      backdrop-filter: blur(40px) saturate(190%) brightness(0.85);
+      -webkit-backdrop-filter: blur(40px) saturate(190%) brightness(0.85);
+      border: 1px solid rgba(168,130,255,0.1);
+      box-shadow: 0 4px 28px rgba(0,0,0,0.45),
+                  inset 0 1px 0 rgba(200,160,255,0.07),
+                  inset 0 -1px 0 rgba(0,200,255,0.03);
     }
-
     .pill::before {
       content: "";
-      position: absolute;
-      top: 0;
-      left: 20%;
-      right: 20%;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(168,130,255,0.25), transparent);
+      position: absolute; top: 0; left: 12%; right: 12%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(180,140,255,0.3), rgba(0,220,255,0.18), rgba(180,140,255,0.3), transparent);
+      animation: shimmer 5s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0%,100% { opacity: 0.4; left: 12%; right: 12%; }
+      50%      { opacity: 0.9; left:  4%; right:  4%; }
     }
 
-    /* Individual pills spacing */
-    .pill + .pill {
-      margin-left: 8px;
+    /* ─── Clock pill ─── */
+    .pill-clock {
+      padding: 9px 24px;
+      border-color: rgba(168,130,255,0.16);
+      box-shadow: 0 4px 36px rgba(0,0,0,0.5), 0 0 70px rgba(108,80,220,0.07),
+                  inset 0 1px 0 rgba(200,160,255,0.1);
     }
-
-    /* === Clock pill (center hero) === */
-    .clock-pill {
-      padding: 12px 32px;
-      background: rgba(8, 6, 18, 0.55);
-      border: 1px solid rgba(168, 130, 255, 0.1);
-      box-shadow:
-        0 8px 40px rgba(0, 0, 0, 0.4),
-        0 0 60px rgba(108, 92, 231, 0.06);
-    }
-
-    .clock-pill::after {
+    .pill-clock::after {
       content: "";
-      position: absolute;
-      bottom: 0;
-      left: 25%;
-      right: 25%;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(168,130,255,0.2), transparent);
+      position: absolute; inset: -1px; border-radius: 18px;
+      border: 1px solid transparent;
+      animation: ringPulse 3s ease-in-out infinite;
+    }
+    @keyframes ringPulse {
+      0%,100% { border-color: rgba(140,100,255,0.0); }
+      50%      { border-color: rgba(140,100,255,0.2); box-shadow: 0 0 18px rgba(140,100,255,0.08); }
     }
 
-    .time-display {
-      display: flex;
-      align-items: baseline;
-      gap: 2px;
+    /* Time */
+    .time-row { display: flex; align-items: baseline; gap: 2px; line-height: 1; }
+    .time-h, .time-m {
+      font-size: 27px; font-weight: 200; letter-spacing: 3px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(200,170,255,0.88), rgba(120,200,255,0.82));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      filter: drop-shadow(0 0 10px rgba(160,120,255,0.35));
     }
-
-    .time-hours,
-    .time-minutes {
-      font-family: "Outfit", sans-serif;
-      font-size: 30px;
-      font-weight: 200;
-      color: rgba(255, 255, 255, 0.92);
-      letter-spacing: 2px;
-      line-height: 1;
-      text-shadow: 0 0 30px rgba(168, 130, 255, 0.15);
+    .time-sep {
+      font-size: 23px; font-weight: 100;
+      color: rgba(168,130,255,0.55);
+      -webkit-text-fill-color: rgba(168,130,255,0.55);
+      animation: blink 2s ease-in-out infinite; margin: 0 1px;
     }
-
-    .time-separator {
-      font-size: 26px;
-      font-weight: 100;
-      color: rgba(168, 130, 255, 0.6);
-      animation: blink 2s ease-in-out infinite;
-      margin: 0 2px;
-    }
-
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.2; }
-    }
-
-    .time-seconds {
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.12; } }
+    .time-s {
       font-family: "JetBrains Mono", monospace;
-      font-size: 12px;
-      font-weight: 300;
-      color: rgba(168, 130, 255, 0.45);
-      margin-left: 6px;
-      letter-spacing: 1px;
-      min-width: 18px;
+      font-size: 10px; font-weight: 300;
+      color: rgba(0,220,255,0.5); letter-spacing: 1px;
+      margin-left: 4px; min-width: 16px;
+    }
+    .time-date {
+      text-align: center; font-size: 9.5px; font-weight: 400;
+      letter-spacing: 1.8px; text-transform: uppercase; margin-top: 3px;
+      background: linear-gradient(90deg, rgba(168,130,255,0.65), rgba(0,200,255,0.55), rgba(255,150,200,0.5));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .clock-line {
+      position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+      height: 2px; width: 70px; border-radius: 2px;
+      background: linear-gradient(90deg, transparent, rgba(108,80,220,0.5), rgba(0,220,255,0.7), rgba(255,100,200,0.4), transparent);
+      animation: clockLine 3s ease-in-out infinite; filter: blur(0.4px);
+    }
+    @keyframes clockLine {
+      0%,100% { width: 50px; opacity: 0.45; }
+      50%      { width: 120px; opacity: 1; }
     }
 
-    .date-line {
-      text-align: center;
-      font-size: 11px;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.4);
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      margin-top: 5px;
-    }
-
-    /* === Status pills (left & right) === */
-    .status-icon {
-      width: 16px;
-      height: 16px;
-      color: rgba(168, 130, 255, 0.5);
+    /* ─── App button ─── */
+    .app-btn {
+      width: 30px; height: 30px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; border: none; outline: none;
+      background: transparent;
+      color: rgba(180,150,255,0.42);
+      position: relative;
+      transition: all 0.28s cubic-bezier(0.16,1,0.3,1);
+      will-change: transform;
       flex-shrink: 0;
     }
-
-    .status-text {
-      font-size: 11px;
-      font-weight: 400;
-      color: rgba(255, 255, 255, 0.45);
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-    }
-
-    .status-value {
-      font-family: "JetBrains Mono", monospace;
-      font-size: 11px;
-      font-weight: 300;
-      color: rgba(255, 255, 255, 0.6);
-      letter-spacing: 0.5px;
-    }
-
-    .status-dot {
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: #00cec9;
-      box-shadow: 0 0 8px rgba(0, 206, 201, 0.5);
-      animation: dotBreathe 3s ease-in-out infinite;
-    }
-
-    @keyframes dotBreathe {
-      0%, 100% { box-shadow: 0 0 6px rgba(0, 206, 201, 0.3); transform: scale(1); }
-      50% { box-shadow: 0 0 12px rgba(0, 206, 201, 0.6); transform: scale(1.2); }
-    }
-
-    /* === App icon pills === */
-    .app-btn {
-      width: 34px;
-      height: 34px;
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-      color: rgba(255, 255, 255, 0.4);
-      background: transparent;
-      border: none;
-      outline: none;
-      position: relative;
-    }
-
-    .app-btn svg {
-      width: 16px;
-      height: 16px;
-      transition: inherit;
-    }
-
+    .app-btn svg { width: 14px; height: 14px; transition: inherit; }
     .app-btn:hover {
-      color: white;
-      background: rgba(168, 130, 255, 0.15);
-      transform: translateY(-6px) scale(1.2);
-      box-shadow: 0 0 20px rgba(108, 92, 231, 0.25);
+      color: #fff;
+      background: rgba(140,100,255,0.16);
+      box-shadow: 0 0 16px rgba(140,100,255,0.3), 0 0 36px rgba(0,200,255,0.08);
     }
-
-    .app-btn:active {
-      transform: translateY(-3px) scale(1.1);
-    }
+    .app-btn:active { transform: translateY(-2px) scale(1.06) !important; }
 
     /* Tooltip */
     .app-btn::after {
-      content: attr(data-tooltip);
-      position: absolute;
-      bottom: calc(100% + 8px);
-      left: 50%;
-      transform: translateX(-50%) scale(0.85);
-      padding: 4px 10px;
-      background: rgba(10, 8, 20, 0.9);
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 10px;
-      font-weight: 500;
-      border-radius: 8px;
-      white-space: nowrap;
-      pointer-events: none;
-      opacity: 0;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      border: 1px solid rgba(168, 130, 255, 0.1);
+      content: attr(data-tip);
+      position: absolute; bottom: calc(100% + 9px); left: 50%;
+      transform: translateX(-50%) translateY(4px) scale(0.88);
+      padding: 3px 9px;
+      background: rgba(10,6,24,0.93);
+      border: 1px solid rgba(140,100,255,0.18); border-radius: 7px;
+      color: rgba(255,255,255,0.8); font-size: 9.5px; font-weight: 400;
+      white-space: nowrap; pointer-events: none; opacity: 0;
+      transition: all 0.2s cubic-bezier(0.16,1,0.3,1);
+      backdrop-filter: blur(10px);
     }
+    .app-btn:hover::after { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 
-    .app-btn:hover::after {
-      opacity: 1;
-      transform: translateX(-50%) scale(1);
-    }
-
-    /* Tiny separator */
+    /* ─── Divider ─── */
     .vsep {
-      width: 1px;
-      height: 16px;
+      width: 1px; height: 16px; flex-shrink: 0; margin: 0 1px;
       background: linear-gradient(180deg, transparent, rgba(168,130,255,0.1), transparent);
-      margin: 0 2px;
     }
 
-    /* === Ambient animated line underneath === */
-    .ambient-line {
-      position: absolute;
-      bottom: 2px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 120px;
-      height: 2px;
-      border-radius: 1px;
-      background: linear-gradient(90deg,
-        transparent,
-        rgba(108, 92, 231, 0.4),
-        rgba(168, 130, 255, 0.6),
-        rgba(108, 92, 231, 0.4),
-        transparent
-      );
-      animation: ambientShift 4s ease-in-out infinite;
+    /* ─── Live dot ─── */
+    .live-dot {
+      width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+      background: radial-gradient(circle, #00ffcc, #00cec9);
+      box-shadow: 0 0 8px rgba(0,255,200,0.6);
+      animation: breathe 2.5s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%,100% { transform: scale(1); box-shadow: 0 0 6px rgba(0,255,200,0.4); }
+      50%      { transform: scale(1.35); box-shadow: 0 0 14px rgba(0,255,200,0.7); }
     }
 
-    @keyframes ambientShift {
-      0%, 100% { width: 100px; opacity: 0.5; }
-      50% { width: 180px; opacity: 1; }
+    /* ─── Sys text ─── */
+    .sys-val {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 10.5px; font-weight: 300;
+      color: rgba(200,170,255,0.5); letter-spacing: 0.4px; white-space: nowrap;
     }
+
+    /* WiFi */
+    .wifi-icon { width: 14px; height: 14px; color: rgba(0,200,255,0.45); flex-shrink: 0; }
+
+    /* Search toggle btn */
+    .search-toggle {
+      width: 30px; height: 30px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; border: none; outline: none;
+      background: transparent;
+      color: rgba(168,130,255,0.5);
+      transition: all 0.25s ease;
+      flex-shrink: 0;
+    }
+    .search-toggle svg { width: 14px; height: 14px; }
+    .search-toggle:hover { color: rgba(255,255,255,0.9); background: rgba(140,100,255,0.15); }
+    .search-toggle.active { color: rgba(168,130,255,1); background: rgba(140,100,255,0.2); }
   </style>
 </head>
 <body>
-  <div class="widget-wrap">
-    <div class="bar">
+  <canvas id="canvas"></canvas>
 
-      <!-- LEFT: Status pill -->
+  <div class="dock-root">
+    <!-- Search overlay -->
+    <div class="search-wrap" id="search-wrap">
+      <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input class="search-input" id="search-input" type="text" placeholder="Tìm kiếm ứng dụng..." autocomplete="off" spellcheck="false" />
+        <span class="search-hint">ESC để đóng</span>
+      </div>
+      <div class="search-results" id="search-results"></div>
+    </div>
+
+    <!-- Main dock -->
+    <div class="dock-bar">
+
+      <!-- Status -->
       <div class="pill">
-        <div class="status-dot"></div>
-        <span class="status-value" id="cpu-val">Active</span>
+        <div class="live-dot"></div>
+        <span class="sys-val">Active</span>
       </div>
 
-      <!-- LEFT-CENTER: Quick apps -->
+      <!-- Apps Group 1 -->
       <div class="pill">
-        <button class="app-btn" data-tooltip="Explorer" data-app="explorer">
+        <button class="app-btn" data-tip="Explorer" data-app="explorer">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
           </svg>
         </button>
         <div class="vsep"></div>
-        <button class="app-btn" data-tooltip="Browser" data-app="browser">
+        <button class="app-btn" data-tip="Edge" data-app="browser">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="2" y1="12" x2="22" y2="12"/>
+            <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
             <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
           </svg>
         </button>
         <div class="vsep"></div>
-        <button class="app-btn" data-tooltip="Terminal" data-app="terminal">
+        <button class="app-btn" data-tip="Terminal" data-app="terminal">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="4,17 10,11 4,5"/>
-            <line x1="12" y1="19" x2="20" y2="19"/>
+            <polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/>
+          </svg>
+        </button>
+        <div class="vsep"></div>
+        <button class="app-btn" data-tip="VS Code" data-app="vscode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16,18 22,12 16,6"/><polyline points="8,6 2,12 8,18"/>
           </svg>
         </button>
       </div>
 
-      <!-- CENTER: Clock (hero) -->
-      <div class="pill clock-pill">
+      <!-- Clock -->
+      <div class="pill pill-clock">
         <div>
-          <div class="time-display">
-            <span class="time-hours" id="t-h">00</span>
-            <span class="time-separator">:</span>
-            <span class="time-minutes" id="t-m">00</span>
-            <span class="time-seconds" id="t-s">00</span>
+          <div class="time-row">
+            <span class="time-h" id="t-h">00</span>
+            <span class="time-sep">:</span>
+            <span class="time-m" id="t-m">00</span>
+            <span class="time-s" id="t-s">00</span>
           </div>
-          <div class="date-line" id="t-date">---</div>
+          <div class="time-date" id="t-date">---</div>
         </div>
-        <div class="ambient-line"></div>
+        <div class="clock-line"></div>
       </div>
 
-      <!-- RIGHT-CENTER: More apps -->
+      <!-- Apps Group 2 -->
       <div class="pill">
-        <button class="app-btn" data-tooltip="Settings" data-app="settings">
+        <button class="app-btn" data-tip="Settings" data-app="settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
         </button>
         <div class="vsep"></div>
-        <button class="app-btn" data-tooltip="Notepad" data-app="notepad">
+        <button class="app-btn" data-tip="Notepad" data-app="notepad">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14,2 14,8 20,8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
           </svg>
         </button>
         <div class="vsep"></div>
-        <button class="app-btn" data-tooltip="Store" data-app="store">
+        <button class="app-btn" data-tip="Calculator" data-app="calculator">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="2" width="16" height="20" rx="2"/>
+            <line x1="8" y1="6" x2="16" y2="6"/>
+            <line x1="8" y1="10" x2="8" y2="10"/><line x1="12" y1="10" x2="12" y2="10"/><line x1="16" y1="10" x2="16" y2="10"/>
+            <line x1="8" y1="14" x2="8" y2="14"/><line x1="12" y1="14" x2="12" y2="14"/><line x1="16" y1="14" x2="16" y2="14"/>
+            <line x1="8" y1="18" x2="12" y2="18"/><line x1="16" y1="18" x2="16" y2="18"/>
+          </svg>
+        </button>
+        <div class="vsep"></div>
+        <button class="app-btn" data-tip="Store" data-app="store">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M6 2L3 7v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-3-5z"/>
-            <line x1="3" y1="7" x2="21" y2="7"/>
-            <path d="M16 11a4 4 0 0 1-8 0"/>
+            <line x1="3" y1="7" x2="21" y2="7"/><path d="M16 11a4 4 0 0 1-8 0"/>
           </svg>
         </button>
       </div>
 
-      <!-- RIGHT: System info pill -->
+      <!-- Search + Wi-Fi + Time -->
       <div class="pill">
-        <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 12.55a11 11 0 0 1 14 0"/>
-          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+        <button class="search-toggle" id="search-btn" data-tip="Tìm kiếm (Ctrl+Space)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </button>
+        <div class="vsep"></div>
+        <svg class="wifi-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.55a11 11 0 0 1 14 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
           <circle cx="12" cy="20" r="1" fill="currentColor"/>
         </svg>
-        <div class="vsep"></div>
-        <span class="status-value" id="tray-time">--:--</span>
+        <span class="sys-val" id="mini-time">--:--</span>
       </div>
 
     </div>
   </div>
 
   <script>
-    // === Clock ===
+    // ── Clock ──
+    var DAYS = ['CN','T2','T3','T4','T5','T6','T7'];
+    var MONTHS = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                  'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+    function pad(n) { return String(n).padStart(2,'0'); }
     function tick() {
-      var now = new Date();
-      document.getElementById('t-h').textContent = now.getHours().toString().padStart(2, '0');
-      document.getElementById('t-m').textContent = now.getMinutes().toString().padStart(2, '0');
-      document.getElementById('t-s').textContent = now.getSeconds().toString().padStart(2, '0');
-
-      var days = ['Chủ Nhật','Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy'];
-      var d = now.getDate();
-      var m = now.getMonth() + 1;
+      var n = new Date();
+      document.getElementById('t-h').textContent = pad(n.getHours());
+      document.getElementById('t-m').textContent = pad(n.getMinutes());
+      document.getElementById('t-s').textContent = pad(n.getSeconds());
+      document.getElementById('mini-time').textContent = pad(n.getHours())+':'+pad(n.getMinutes());
       document.getElementById('t-date').textContent =
-        days[now.getDay()] + '  ·  ' + d.toString().padStart(2,'0') + '/' + m.toString().padStart(2,'0') + '/' + now.getFullYear();
-
-      // tray mini clock
-      document.getElementById('tray-time').textContent =
-        now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+        DAYS[n.getDay()] + '  ·  ' + pad(n.getDate()) + '/' + pad(n.getMonth()+1) + '/' + n.getFullYear();
     }
-    tick();
-    setInterval(tick, 1000);
+    tick(); setInterval(tick, 1000);
 
-    // === App Launcher ===
+    // ── App definitions (for search + launcher) ──
+    var APPS = [
+      { id:'explorer',   label:'File Explorer',  icon:'folder',    key:['file','explorer','thu muc'] },
+      { id:'browser',    label:'Edge Browser',   icon:'globe',     key:['browser','edge','web','internet'] },
+      { id:'terminal',   label:'Terminal',        icon:'terminal',  key:['terminal','cmd','powershell','console'] },
+      { id:'vscode',     label:'VS Code',         icon:'code',      key:['vscode','code','editor','lap trinh'] },
+      { id:'settings',   label:'Cài đặt Windows', icon:'settings',  key:['settings','cai dat','he thong'] },
+      { id:'notepad',    label:'Notepad',          icon:'file',      key:['notepad','ghi chu','text'] },
+      { id:'calculator', label:'Calculator',       icon:'calc',      key:['calc','may tinh','calculator'] },
+      { id:'store',      label:'Microsoft Store',  icon:'store',     key:['store','cua hang','app'] },
+      { id:'paint',      label:'Paint',            icon:'paint',     key:['paint','ve','hinh'] },
+      { id:'taskmanager',label:'Task Manager',     icon:'cpu',       key:['task manager','tac vu','cpu','process'] }
+    ];
+
+    var SVG_ICONS = {
+      folder: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+      globe:  '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+      terminal:'<polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/>',
+      code:   '<polyline points="16,18 22,12 16,6"/><polyline points="8,6 2,12 8,18"/>',
+      settings:'<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="9"/>',
+      file:   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/>',
+      calc:   '<rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/>',
+      store:  '<path d="M6 2L3 7v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-3-5z"/><line x1="3" y1="7" x2="21" y2="7"/>',
+      paint:  '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8z"/><circle cx="6.5" cy="11.5" r="1.5"/><circle cx="9.5" cy="7.5" r="1.5"/><circle cx="14.5" cy="7.5" r="1.5"/><circle cx="17.5" cy="11.5" r="1.5"/>',
+      cpu:    '<rect x="2" y="2" width="20" height="20" rx="2"/><rect x="6" y="6" width="12" height="12"/><line x1="6" y1="2" x2="6" y2="6"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="18" y1="2" x2="18" y2="6"/>'
+    };
+
+    function launchApp(id) {
+      if (window.api && window.api.launchApp) {
+        window.api.launchApp(id);
+      }
+    }
+
+    // ── Dock app buttons ──
     document.querySelectorAll('.app-btn[data-app]').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var app = this.getAttribute('data-app');
-        if (window.api && window.api.launchApp) {
-          window.api.launchApp(app);
+      btn.addEventListener('click', function() { launchApp(this.getAttribute('data-app')); });
+    });
+
+    // ── Search ──
+    var searchWrap  = document.getElementById('search-wrap');
+    var searchInput = document.getElementById('search-input');
+    var searchResults = document.getElementById('search-results');
+    var searchBtn   = document.getElementById('search-btn');
+    var activeIdx   = -1;
+
+    function openSearch() {
+      searchWrap.classList.add('open');
+      searchBtn.classList.add('active');
+      setTimeout(function() { searchInput.focus(); }, 50);
+    }
+    function closeSearch() {
+      searchWrap.classList.remove('open');
+      searchBtn.classList.remove('active');
+      searchInput.value = '';
+      renderResults([]);
+      activeIdx = -1;
+    }
+    function toggleSearch() {
+      if (searchWrap.classList.contains('open')) closeSearch(); else openSearch();
+    }
+
+    searchBtn.addEventListener('click', toggleSearch);
+
+    // Ctrl+Space shortcut
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey && e.code === 'Space') || (e.metaKey && e.code === 'Space')) {
+        e.preventDefault(); toggleSearch(); return;
+      }
+      if (e.code === 'Escape') { closeSearch(); return; }
+      if (!searchWrap.classList.contains('open')) return;
+      var items = searchResults.querySelectorAll('.search-result-item');
+      if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        activeIdx = (activeIdx + 1) % items.length;
+        items.forEach(function(it, i) { it.classList.toggle('active', i === activeIdx); });
+      } else if (e.code === 'ArrowUp') {
+        e.preventDefault();
+        activeIdx = (activeIdx - 1 + items.length) % items.length;
+        items.forEach(function(it, i) { it.classList.toggle('active', i === activeIdx); });
+      } else if (e.code === 'Enter') {
+        var active = searchResults.querySelector('.active');
+        if (active) { launchApp(active.getAttribute('data-app')); closeSearch(); }
+      }
+    });
+
+    searchInput.addEventListener('input', function() {
+      var q = this.value.toLowerCase().trim();
+      if (!q) { renderResults([]); return; }
+      var found = APPS.filter(function(a) {
+        return a.label.toLowerCase().includes(q) || a.key.some(function(k) { return k.includes(q); });
+      });
+      renderResults(found);
+      activeIdx = found.length > 0 ? 0 : -1;
+    });
+
+    function renderResults(apps) {
+      searchResults.innerHTML = '';
+      if (apps.length === 0) {
+        searchResults.classList.remove('has-results'); return;
+      }
+      searchResults.classList.add('has-results');
+      apps.slice(0, 6).forEach(function(app, i) {
+        var el = document.createElement('div');
+        el.className = 'search-result-item' + (i === 0 ? ' active' : '');
+        el.setAttribute('data-app', app.id);
+        var svg = SVG_ICONS[app.icon] || SVG_ICONS.file;
+        el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + svg + '</svg>' + app.label;
+        el.addEventListener('click', function() { launchApp(app.id); closeSearch(); });
+        searchResults.appendChild(el);
+      });
+    }
+
+    // Close on outside click
+    document.addEventListener('click', function(e) {
+      if (searchWrap.classList.contains('open') && !searchWrap.contains(e.target) && e.target !== searchBtn) {
+        closeSearch();
+      }
+    });
+
+    // ── Proximity magnification ──
+    var allBtns = document.querySelectorAll('.app-btn');
+    var MAX_DIST = 90;
+    document.addEventListener('mousemove', function(e) {
+      allBtns.forEach(function(btn) {
+        var r = btn.getBoundingClientRect();
+        var dx = e.clientX - (r.left + r.width/2);
+        var dy = e.clientY - (r.top + r.height/2);
+        var dist = Math.sqrt(dx*dx + dy*dy);
+        var raw = Math.max(0, 1 - dist/MAX_DIST);
+        var f = raw*raw*(3-2*raw);
+        if (!btn.matches(':hover')) {
+          btn.style.transform = 'translateY(-' + (f*9) + 'px) scale(' + (1+f*0.3) + ')';
+          btn.style.color = 'rgba(180,150,255,' + (0.42+f*0.58) + ')';
         }
       });
     });
-
-    // === Proximity magnification ===
-    var btns = document.querySelectorAll('.app-btn');
-    document.addEventListener('mousemove', function(e) {
-      btns.forEach(function(btn) {
-        var rect = btn.getBoundingClientRect();
-        var cx = rect.left + rect.width / 2;
-        var cy = rect.top + rect.height / 2;
-        var dx = e.clientX - cx;
-        var dy = e.clientY - cy;
-        var dist = Math.sqrt(dx*dx + dy*dy);
-        var maxDist = 120;
-        var f = Math.max(0, 1 - dist / maxDist);
-        f = f * f * (3 - 2 * f); // smoothstep
-        var s = 1 + f * 0.25;
-        var lift = f * 6;
-        btn.style.transform = 'translateY(-' + lift + 'px) scale(' + s + ')';
-        btn.style.color = 'rgba(255,255,255,' + (0.4 + f * 0.6) + ')';
-      });
+    document.addEventListener('mouseleave', function() {
+      allBtns.forEach(function(b) { b.style.transform=''; b.style.color=''; });
     });
+
+    // ── VS Code launcher fix ──
+    // vscode handled in main process; fallback via shell
+    // (handled server-side in dock-manager.ts)
+
+    // ── Particle canvas ──
+    var canvas = document.getElementById('canvas');
+    var ctx = canvas.getContext('2d');
+    function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
+    resize(); window.addEventListener('resize', resize);
+    var CLRS = ['rgba(140,100,255,','rgba(0,200,255,','rgba(255,120,200,','rgba(80,255,200,'];
+    var pts = [];
+    for (var i=0; i<14; i++) pts.push(mkPt());
+    function mkPt() {
+      return { x:Math.random()*innerWidth, y:innerHeight*(0.15+Math.random()*0.85),
+               vx:(Math.random()-0.5)*0.35, vy:-(Math.random()*0.25+0.08),
+               r:Math.random()*1.4+0.4, a:Math.random()*0.35+0.08,
+               c:CLRS[0|Math.random()*CLRS.length], life:0, max:Math.random()*220+80 };
+    }
+    function animPts() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      pts.forEach(function(p,i) {
+        p.x+=p.vx; p.y+=p.vy; p.life++;
+        var t=p.life/p.max;
+        var a=p.a*(t<0.2?t/0.2:1-(t-0.2)/0.8);
+        if(a>0){ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle=p.c+Math.max(0,a)+')';ctx.fill();}
+        if(p.life>=p.max) pts[i]=mkPt();
+      });
+      requestAnimationFrame(animPts);
+    }
+    animPts();
   </script>
 </body>
 </html>

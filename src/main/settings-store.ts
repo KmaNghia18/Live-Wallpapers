@@ -24,6 +24,7 @@ interface StoreSchema {
   hotkeyPlayPause: string
   // Feature flags
   enableCustomDock: boolean
+  dockHeight: number
 }
 
 export interface WallpaperItem {
@@ -59,7 +60,8 @@ const defaults: StoreSchema = {
   screensaverWallpaper: null,
   hotkeyNext: 'Ctrl+Alt+N',
   hotkeyPlayPause: 'Ctrl+Alt+P',
-  enableCustomDock: true
+  enableCustomDock: false,
+  dockHeight: 80
 }
 
 export class SettingsStore {

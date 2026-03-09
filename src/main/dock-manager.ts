@@ -47,16 +47,21 @@ export class DockManager {
       focusable: false,
       alwaysOnTop: true,
       hasShadow: false,
-      type: 'toolbar',
+      roundedCorners: false,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
         contextIsolation: true,
-        nodeIntegration: false
+        nodeIntegration: false,
+        backgroundThrottling: false
       }
     })
 
-    // Make click-through on transparent areas
+    // Keep dock above all windows including fullscreen
+    this.dockWindow.setAlwaysOnTop(true, 'screen-saver')
+
+    // Allow mouse events (needed for buttons to work)
+    // Use forward:true so transparent areas pass events through to desktop
     this.dockWindow.setIgnoreMouseEvents(false)
 
     // Load dock HTML
@@ -70,6 +75,8 @@ export class DockManager {
       return
     }
 
+    // Explicitly show the window after loading
+    this.dockWindow.show()
     this.isVisible = true
 
     // Auto-hide Windows taskbar
@@ -94,11 +101,11 @@ export class DockManager {
   /**
    * Toggle dock visibility
    */
-  toggle(): void {
+  async toggle(): Promise<void> {
     if (this.isVisible) {
       this.hide()
     } else {
-      this.show()
+      await this.show()
     }
   }
 
@@ -135,8 +142,8 @@ export class DockManager {
    * Register IPC handlers for dock
    */
   registerIPC(): void {
-    electron.ipcMain.handle('dock-toggle', () => {
-      this.toggle()
+    electron.ipcMain.handle('dock-toggle', async () => {
+      await this.toggle()
       return this.isVisible
     })
 
@@ -172,7 +179,10 @@ export class DockManager {
       settings: 'start ms-settings:',
       notepad: 'notepad.exe',
       calculator: 'calc.exe',
-      store: 'start ms-windows-store:'
+      store: 'start ms-windows-store:',
+      vscode: 'code',
+      paint: 'mspaint.exe',
+      taskmanager: 'taskmgr.exe'
     }
 
     const cmd = appCommands[appId]
