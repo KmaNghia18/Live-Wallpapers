@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '../i18n'
 
 interface SettingsPanelProps {
   settings: Record<string, unknown>
@@ -14,7 +15,6 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
     setTimeout(() => setSaved(false), 1800)
   }
 
-  // Toggle row component
   const Toggle = ({
     settingKey, label, description, badge
   }: { settingKey: string; label: string; description?: string; badge?: string }): JSX.Element => (
@@ -43,7 +43,6 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
     </div>
   )
 
-  // Select row component
   const SelectRow = ({
     settingKey, label, description, options
   }: { settingKey: string; label: string; description?: string; options: { value: string; label: string }[] }): JSX.Element => (
@@ -64,12 +63,9 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
 
   const kbd = (keys: string): JSX.Element => (
     <span style={{
-      padding: '3px 10px',
-      background: 'var(--bg-tertiary)',
-      borderRadius: '6px', fontSize: '0.78rem',
-      color: 'var(--text-secondary)',
-      border: '1px solid var(--border-color)',
-      fontFamily: 'monospace', letterSpacing: '0.5px'
+      padding: '3px 10px', background: 'var(--bg-tertiary)',
+      borderRadius: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)',
+      border: '1px solid var(--border-color)', fontFamily: 'monospace', letterSpacing: '0.5px'
     }}>{keys}</span>
   )
 
@@ -77,8 +73,8 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
     <div className="settings animate-fade-in">
       <div className="page-header">
         <div>
-          <h1 className="page-header__title">Settings</h1>
-          <p className="page-header__subtitle">Configure your live wallpaper experience</p>
+          <h1 className="page-header__title">{t('settings.title')}</h1>
+          <p className="page-header__subtitle">{t('settings.subtitle')}</p>
         </div>
         {saved && (
           <span style={{
@@ -86,61 +82,60 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
             display: 'flex', alignItems: 'center', gap: '5px',
             animation: 'fadeIn 0.3s ease'
           }}>
-            ✓ Saved
+            {t('settings.saved')}
           </span>
         )}
       </div>
 
       {/* ── General ── */}
       <div className="settings__group">
-        <div className="settings__group-title">⚙️ General</div>
-        <Toggle settingKey="autoStart" label="Start with Windows" description="Launch automatically when you log in" />
-        <Toggle settingKey="minimizeToTray" label="Minimize to Tray" description="Keep running in background when closed" />
+        <div className="settings__group-title">{t('settings.general')}</div>
+        <Toggle settingKey="autoStart" label={t('settings.autoStart')} description={t('settings.autoStart.desc')} />
+        <Toggle settingKey="minimizeToTray" label={t('settings.minimizeToTray')} description={t('settings.minimizeToTray.desc')} />
         <SelectRow
           settingKey="theme"
-          label="Theme"
-          description="App appearance"
+          label={t('settings.theme')}
+          description={t('settings.theme.desc')}
           options={[
-            { value: 'dark',   label: '🌙 Dark' },
-            { value: 'light',  label: '☀️ Light' },
-            { value: 'system', label: '🖥 System' }
+            { value: 'dark',   label: t('settings.theme.dark') },
+            { value: 'light',  label: t('settings.theme.light') },
+            { value: 'system', label: t('settings.theme.system') },
           ]}
         />
         <SelectRow
           settingKey="language"
-          label="Language"
-          description="Display language"
+          label={t('settings.language')}
+          description={t('settings.language.desc')}
           options={[
             { value: 'vi', label: '🇻🇳 Tiếng Việt' },
-            { value: 'en', label: '🇺🇸 English' }
+            { value: 'en', label: '🇺🇸 English' },
           ]}
         />
       </div>
 
       {/* ── Wallpaper ── */}
       <div className="settings__group">
-        <div className="settings__group-title">🖼️ Wallpaper</div>
+        <div className="settings__group-title">{t('settings.wallpaper')}</div>
         <SelectRow
           settingKey="videoQuality"
-          label="Video Quality"
-          description="Auto-detect or force specific resolution"
+          label={t('settings.quality')}
+          description={t('settings.quality.desc')}
           options={[
             { value: 'auto', label: 'Auto Detect' },
             { value: '4k',   label: '4K (2160p)' },
             { value: '2k',   label: '2K (1440p)' },
             { value: 'fhd',  label: 'Full HD (1080p)' },
-            { value: 'hd',   label: 'HD (720p)' }
+            { value: 'hd',   label: 'HD (720p)' },
           ]}
         />
         <div className="settings__row">
           <div>
-            <div className="settings__label">FPS Limit</div>
-            <div className="settings__description">Limit frame rate to save resources</div>
+            <div className="settings__label">{t('settings.fps')}</div>
+            <div className="settings__description">{t('settings.fps.desc')}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <input
-              type="range" className="range-slider"
-              min="10" max="60" step="5"
+              type="range" className="range-slider" min="10" max="60" step="5"
               value={(settings.fpsLimit as number) ?? 30}
               onChange={e => handleChange('fpsLimit', parseInt(e.target.value))}
             />
@@ -151,29 +146,28 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
         </div>
         <SelectRow
           settingKey="fillMode"
-          label="Fill Mode"
-          description="How wallpaper fills the screen"
+          label={t('settings.fillMode')}
+          description={t('settings.fillMode.desc')}
           options={[
-            { value: 'cover',   label: 'Cover (fill screen)' },
-            { value: 'contain', label: 'Contain (fit inside)' },
-            { value: 'stretch', label: 'Stretch' }
+            { value: 'cover',   label: t('settings.fillMode.cover') },
+            { value: 'contain', label: t('settings.fillMode.contain') },
+            { value: 'stretch', label: t('settings.fillMode.stretch') },
           ]}
         />
       </div>
 
       {/* ── Audio ── */}
       <div className="settings__group">
-        <div className="settings__group-title">🔊 Audio</div>
-        <Toggle settingKey="wallpaperMuted" label="Mute Wallpaper Audio" description="Mute sound from video wallpapers" />
+        <div className="settings__group-title">{t('settings.audio')}</div>
+        <Toggle settingKey="wallpaperMuted" label={t('settings.mute')} description={t('settings.mute.desc')} />
         <div className="settings__row">
           <div>
-            <div className="settings__label">Volume</div>
-            <div className="settings__description">Wallpaper audio level</div>
+            <div className="settings__label">{t('settings.volume')}</div>
+            <div className="settings__description">{t('settings.volume.desc')}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <input
-              type="range" className="range-slider"
-              min="0" max="100"
+              type="range" className="range-slider" min="0" max="100"
               value={(settings.wallpaperVolume as number) ?? 50}
               onChange={e => handleChange('wallpaperVolume', parseInt(e.target.value))}
               disabled={(settings.wallpaperMuted as boolean) ?? false}
@@ -188,52 +182,34 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
 
       {/* ── Performance ── */}
       <div className="settings__group">
-        <div className="settings__group-title">⚡ Performance</div>
-        <Toggle
-          settingKey="pauseOnFullscreen"
-          label="Pause on Fullscreen App"
-          description="Auto-pause when games or apps go fullscreen"
-          badge="Recommended"
-        />
-        <Toggle
-          settingKey="pauseOnBattery"
-          label="Battery Saver"
-          description="Reduce quality and FPS when on battery power"
-          badge="Recommended"
-        />
+        <div className="settings__group-title">{t('settings.performance')}</div>
+        <Toggle settingKey="pauseOnFullscreen" label={t('settings.pauseFullscreen')} description={t('settings.pauseFullscreen.desc')} badge="Recommended" />
+        <Toggle settingKey="pauseOnBattery" label={t('settings.battery')} description={t('settings.battery.desc')} badge="Recommended" />
         <div className="settings__row">
           <div>
-            <div className="settings__label">Hardware Acceleration</div>
-            <div className="settings__description">Use GPU for smoother playback</div>
+            <div className="settings__label">{t('settings.hwAccel')}</div>
+            <div className="settings__description">GPU rendering</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '0.78rem', color: 'rgba(0,206,180,0.75)', fontFamily: 'monospace' }}>
-              Always On
-            </span>
-          </div>
+          <span style={{ fontSize: '0.78rem', color: 'rgba(0,206,180,0.75)', fontFamily: 'monospace' }}>
+            {t('settings.hwAccel.value')}
+          </span>
         </div>
       </div>
 
       {/* ── Desktop Dock ── */}
       <div className="settings__group">
-        <div className="settings__group-title">🖥️ Desktop Dock</div>
-        <Toggle
-          settingKey="enableCustomDock"
-          label="Enable Custom Dock"
-          description="Replace Windows taskbar with a premium galaxy-style dock"
-          badge="New"
-        />
+        <div className="settings__group-title">{t('settings.dock')}</div>
+        <Toggle settingKey="enableCustomDock" label={t('settings.dock.enable')} description={t('settings.dock.enable.desc')} badge="New" />
         {(settings.enableCustomDock as boolean) && (
           <>
             <div className="settings__row">
               <div>
-                <div className="settings__label">Dock Height</div>
-                <div className="settings__description">Size of the dock bar</div>
+                <div className="settings__label">{t('settings.dock.height')}</div>
+                <div className="settings__description">{t('settings.dock.height.desc')}</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <input
-                  type="range" className="range-slider"
-                  min="60" max="120" step="4"
+                  type="range" className="range-slider" min="60" max="120" step="4"
                   value={(settings.dockHeight as number) ?? 80}
                   onChange={e => handleChange('dockHeight', parseInt(e.target.value))}
                 />
@@ -244,15 +220,15 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
             </div>
             <div className="settings__row">
               <div>
-                <div className="settings__label">Dock Hotkey</div>
-                <div className="settings__description">Toggle dock visibility</div>
+                <div className="settings__label">{t('settings.dock.hotkey')}</div>
+                <div className="settings__description">{t('settings.dock.hotkey.desc')}</div>
               </div>
               {kbd('Ctrl + Alt + D')}
             </div>
             <div className="settings__row">
               <div>
-                <div className="settings__label">Search Launcher</div>
-                <div className="settings__description">Open app search from dock</div>
+                <div className="settings__label">{t('settings.dock.search')}</div>
+                <div className="settings__description">{t('settings.dock.search.desc')}</div>
               </div>
               {kbd('Ctrl + Space')}
             </div>
@@ -262,23 +238,18 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
 
       {/* ── Screensaver ── */}
       <div className="settings__group">
-        <div className="settings__group-title">🌀 Screensaver</div>
-        <Toggle
-          settingKey="screensaverEnabled"
-          label="Enable Screensaver"
-          description="Show animated screensaver when idle"
-        />
+        <div className="settings__group-title">{t('settings.screensaver')}</div>
+        <Toggle settingKey="screensaverEnabled" label={t('settings.screensaver.enable')} description={t('settings.screensaver.enable.desc')} />
         {(settings.screensaverEnabled as boolean) && (
           <>
             <div className="settings__row">
               <div>
-                <div className="settings__label">Idle Timeout</div>
-                <div className="settings__description">Start screensaver after inactivity</div>
+                <div className="settings__label">{t('settings.screensaver.idle')}</div>
+                <div className="settings__description">{t('settings.screensaver.idle.desc')}</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <input
-                  type="range" className="range-slider"
-                  min="1" max="30" step="1"
+                  type="range" className="range-slider" min="1" max="30" step="1"
                   value={(settings.screensaverIdleMinutes as number) ?? 10}
                   onChange={e => handleChange('screensaverIdleMinutes', parseInt(e.target.value))}
                 />
@@ -287,23 +258,19 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
                 </span>
               </div>
             </div>
-            <Toggle
-              settingKey="screensaverUseCurrentWallpaper"
-              label="Use Current Wallpaper"
-              description="Use active wallpaper as screensaver"
-            />
+            <Toggle settingKey="screensaverUseCurrentWallpaper" label={t('settings.screensaver.current')} description={t('settings.screensaver.current.desc')} />
           </>
         )}
       </div>
 
       {/* ── Hotkeys ── */}
       <div className="settings__group">
-        <div className="settings__group-title">⌨️ Hotkeys</div>
+        <div className="settings__group-title">{t('settings.hotkeys')}</div>
         {[
-          { label: 'Next Wallpaper',  keys: 'Ctrl + Alt + N' },
-          { label: 'Play / Pause',    keys: 'Ctrl + Alt + P' },
-          { label: 'Toggle Dock',     keys: 'Ctrl + Alt + D' },
-          { label: 'Dock Search',     keys: 'Ctrl + Space' }
+          { label: t('settings.hotkey.next'),   keys: 'Ctrl + Alt + N' },
+          { label: t('settings.hotkey.play'),   keys: 'Ctrl + Alt + P' },
+          { label: t('settings.hotkey.dock'),   keys: 'Ctrl + Alt + D' },
+          { label: t('settings.hotkey.search'), keys: 'Ctrl + Space' },
         ].map(({ label, keys }) => (
           <div key={keys} className="settings__row">
             <div className="settings__label">{label}</div>
@@ -314,13 +281,13 @@ function SettingsPanel({ settings, onSettingChange }: SettingsPanelProps): JSX.E
 
       {/* ── About ── */}
       <div className="settings__group">
-        <div className="settings__group-title">ℹ️ About</div>
+        <div className="settings__group-title">{t('settings.about')}</div>
         <div className="settings__row">
-          <div className="settings__label">Version</div>
+          <div className="settings__label">{t('settings.version')}</div>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>v1.0.0</span>
         </div>
         <div className="settings__row">
-          <div className="settings__label">Author</div>
+          <div className="settings__label">{t('settings.author')}</div>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>KmaNghia18</span>
         </div>
       </div>

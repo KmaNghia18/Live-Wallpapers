@@ -8,6 +8,7 @@ import PlaylistEditor from './components/PlaylistEditor'
 import AudioVisualizerSettings from './components/AudioVisualizerSettings'
 import SystemWidgets from './components/SystemWidgets'
 import NowPlayingBar from './components/NowPlayingBar'
+import { setLanguage, getLanguage } from './i18n'
 
 declare global {
   interface Window {
@@ -54,12 +55,39 @@ function App(): JSX.Element {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentWallpaper, setCurrentWallpaper] = useState<string | null>(null)
   const [settings, setSettings] = useState<Record<string, unknown>>({})
+  const [, setLangKey] = useState(0) // triggers re-render on language change
 
   useEffect(() => {
     loadData()
     window.api.onOpenSettings(() => setCurrentView('settings'))
     window.api.onNextWallpaper(() => handleNextWallpaper())
+    // Apply saved theme and language on startup
+    const savedTheme = (localStorage.getItem('app_theme') || 'dark') as string
+    applyTheme(savedTheme)
+    const savedLang = getLanguage()
+    setLanguage(savedLang)
   }, [])
+
+  // Apply theme whenever settings.theme changes
+  useEffect(() => {
+    if (settings.theme) {
+      const theme = settings.theme as string
+      applyTheme(theme)
+      localStorage.setItem('app_theme', theme)
+    }
+  }, [settings.theme])
+
+  function applyTheme(theme: string): void {
+    const root = document.documentElement
+    if (theme === 'light') {
+      root.setAttribute('data-theme', 'light')
+    } else if (theme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      root.setAttribute('data-theme', prefersDark ? 'dark' : 'light')
+    } else {
+      root.removeAttribute('data-theme') // default dark
+    }
+  }
 
   const loadData = async (): Promise<void> => {
     try {
@@ -153,7 +181,12 @@ function App(): JSX.Element {
   const handleSettingChange = useCallback(async (key: string, value: unknown): Promise<void> => {
     await window.api.setSetting(key, value)
     setSettings(prev => ({ ...prev, [key]: value }))
-  }, [])
+    // Apply language immediately
+    if (key === 'language') {
+      setLanguage(value as 'vi' | 'en')
+      setLangKey(k => k + 1) // force re-render
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Find current wallpaper item for NowPlayingBar
   const currentWallpaperItem = wallpapers.find(w => w.path === currentWallpaper) || null
