@@ -118,15 +118,33 @@
     .result-hint{font-size:0.67rem;color:rgba(162,130,255,0.38);font-family:"JetBrains Mono",monospace;margin-left:auto}
 
     /* ─── Playlist overlay ─── */
-    .playlist-panel{width:360px;max-width:90%;
+    .playlist-panel{width:380px;max-width:92%;
       background:linear-gradient(135deg,rgba(10,6,26,0.92),rgba(16,9,38,0.9));
       backdrop-filter:blur(60px) saturate(180%);-webkit-backdrop-filter:blur(60px) saturate(180%);
       border:1px solid rgba(150,110,255,0.18);border-radius:16px;
       box-shadow:0 12px 48px rgba(0,0,0,0.7),inset 0 1px 0 rgba(200,160,255,0.08);
-      overflow:hidden;max-height:170px;display:flex;flex-direction:column}
-    .playlist-header{display:flex;align-items:center;justify-content:space-between;
-      padding:8px 12px;border-bottom:1px solid rgba(150,110,255,0.1)}
-    .playlist-title{font-size:0.75rem;color:rgba(190,165,255,0.75);font-weight:400}
+      overflow:hidden;max-height:186px;display:flex;flex-direction:column}
+    /* Tab row */
+    .pl-tabs{display:flex;align-items:center;gap:3px;padding:6px 8px 0;
+      border-bottom:1px solid rgba(150,110,255,0.1);overflow-x:auto;flex-shrink:0}
+    .pl-tabs::-webkit-scrollbar{height:2px}
+    .pl-tabs::-webkit-scrollbar-thumb{background:rgba(150,110,255,0.2);border-radius:1px}
+    .pl-tab{font-size:0.68rem;padding:3px 10px;border-radius:7px 7px 0 0;
+      cursor:pointer;color:rgba(190,165,255,0.5);white-space:nowrap;
+      border:1px solid transparent;border-bottom:none;transition:all 0.15s ease;flex-shrink:0}
+    .pl-tab:hover{color:rgba(200,175,255,0.8);background:rgba(130,90,255,0.08)}
+    .pl-tab.active{color:rgba(230,220,255,0.92);background:rgba(130,90,255,0.14);
+      border-color:rgba(150,110,255,0.16)}
+    .pl-tab-new{font-size:0.68rem;padding:3px 8px;border-radius:7px 7px 0 0;
+      cursor:pointer;color:rgba(162,130,255,0.5);border:none;background:transparent;
+      transition:color 0.15s ease;flex-shrink:0}
+    .pl-tab-new:hover{color:rgba(162,130,255,0.9)}
+    /* Action row */
+    .pl-actions{display:flex;align-items:center;justify-content:space-between;
+      padding:4px 8px;border-bottom:1px solid rgba(150,110,255,0.08);flex-shrink:0}
+    .pl-name-label{font-size:0.68rem;color:rgba(190,165,255,0.6);font-weight:400;
+      min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pl-action-btns{display:flex;gap:3px;flex-shrink:0}
     .playlist-body{flex:1;overflow-y:auto;padding:4px}
     .playlist-body::-webkit-scrollbar{width:3px}
     .playlist-body::-webkit-scrollbar-thumb{background:rgba(150,110,255,0.25);border-radius:2px}
@@ -137,7 +155,10 @@
     .pl-item.playing .pl-name{color:rgba(162,155,254,1)}
     .pl-idx{font-size:0.62rem;color:rgba(160,120,255,0.4);font-family:"JetBrains Mono",monospace;min-width:18px;text-align:right}
     .pl-name{font-size:0.75rem;color:rgba(220,210,255,0.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
-    .pl-dur{font-size:0.62rem;color:rgba(160,120,255,0.4);font-family:"JetBrains Mono",monospace;flex-shrink:0}
+    .pl-del{opacity:0;font-size:0.6rem;color:rgba(255,100,100,0.5);cursor:pointer;flex-shrink:0;
+      padding:2px 4px;border-radius:4px;border:none;background:transparent;transition:opacity 0.15s}
+    .pl-item:hover .pl-del{opacity:1}
+    .pl-del:hover{color:rgba(255,100,100,0.9);background:rgba(255,100,100,0.1)}
 
     @keyframes slideUp{from{opacity:0;transform:translateY(10px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
     .anim-up{animation:slideUp 0.28s cubic-bezier(0.16,1,0.3,1) both}
@@ -156,11 +177,22 @@
       <div class="search-results" id="search-results"></div>
     </div>
     <div id="playlist-wrap" class="playlist-panel" style="display:none">
-      <div class="playlist-header">
-        <span class="playlist-title">🎵 Playlist (<span id="pl-count">0</span>)</span>
-        <button class="icon-btn" id="pl-add-btn" title="Add more files">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </button>
+      <!-- Playlist tabs -->
+      <div class="pl-tabs" id="pl-tabs"></div>
+      <!-- Actions row -->
+      <div class="pl-actions">
+        <span class="pl-name-label" id="pl-name-label">Playlist</span>
+        <div class="pl-action-btns">
+          <button class="icon-btn" id="pl-rename-btn" title="Rename playlist" style="width:22px;height:22px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="icon-btn" id="pl-add-btn" title="Add files" style="width:22px;height:22px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button class="icon-btn" id="pl-delete-btn" title="Delete this playlist" style="width:22px;height:22px;color:rgba(255,100,100,0.5)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14a2,2,0,0,1-2,2H8a2,2,0,0,1-2-2L5,6"/><path d="M10,11v6"/><path d="M14,11v6"/></svg>
+          </button>
+        </div>
       </div>
       <div class="playlist-body" id="pl-body"></div>
     </div>
@@ -473,19 +505,42 @@ vizBtn.addEventListener('click', function(){
 });
 
 // ═══════════════════════════════════════════════
-// MUSIC PLAYER
+// MUSIC PLAYER — with localStorage persistence & named playlists
 // ═══════════════════════════════════════════════
-var audio    = document.getElementById('audio');
-var playlist = [];
-var curIdx   = 0;
-var playing  = false;
+var audio   = document.getElementById('audio');
+var playing = false;
+var curIdx  = 0;
+
+// ── Playlist data structure ──
+// playlists = [{ name, tracks: [{path,name,ext}] }, ...]
+var playlists  = [];
+var activePl   = 0;   // index of currently selected playlist
+
+var STORAGE_KEY = 'dock_playlists_v2';
+
+function savePlaylists(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({playlists:playlists, activePl:activePl, curIdx:curIdx})); } catch(e){}
+}
+function loadPlaylists(){
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    var d = JSON.parse(raw);
+    if(d.playlists && d.playlists.length) {
+      playlists = d.playlists;
+      activePl  = Math.min(d.activePl||0, playlists.length-1);
+      curIdx    = d.curIdx||0;
+    }
+  } catch(e){}
+}
+function currentPl(){ return playlists[activePl] || null; }
+function currentTracks(){ var p=currentPl(); return p?p.tracks:[]; }
 
 audio.volume = 0.7;
 
 function fmtTime(s){
   if(!s||isNaN(s)) return '0:00';
-  var m=Math.floor(s/60);
-  return m+':'+String(Math.floor(s%60)).padStart(2,'0');
+  return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 }
 function setPlayIcon(p){
   document.getElementById('play-icon').innerHTML = p
@@ -494,21 +549,22 @@ function setPlayIcon(p){
 }
 
 function loadTrack(idx, autoPlay){
-  if(!playlist.length) return;
-  curIdx = (idx+playlist.length)%playlist.length;
-  var t = playlist[curIdx];
+  var tracks = currentTracks();
+  if(!tracks.length) return;
+  curIdx = (idx+tracks.length)%tracks.length;
+  var t = tracks[curIdx];
   audio.src = 'file://'+t.path;
   document.getElementById('music-title').textContent = t.name;
-  document.getElementById('music-sub').textContent = t.ext.toUpperCase()+' · 0:00';
+  document.getElementById('music-sub').textContent = (t.ext||'').toUpperCase()+' · 0:00';
   document.getElementById('m-bar').style.width='0%';
   renderPlaylist();
-  if(autoPlay){ audio.play(); playing=true; setPlayIcon(true); }
+  savePlaylists();
+  if(autoPlay){ audio.play().catch(function(){}); playing=true; setPlayIcon(true); }
 }
 
 audio.addEventListener('timeupdate',function(){
   if(audio.duration){
-    var pct=(audio.currentTime/audio.duration)*100;
-    document.getElementById('m-bar').style.width=pct+'%';
+    document.getElementById('m-bar').style.width=((audio.currentTime/audio.duration)*100)+'%';
     document.getElementById('music-sub').textContent=fmtTime(audio.currentTime)+' / '+fmtTime(audio.duration);
   }
 });
@@ -521,54 +577,123 @@ document.getElementById('m-prog').addEventListener('click',function(e){
 });
 document.getElementById('m-vol').addEventListener('input',function(){ audio.volume=this.value/100; });
 document.getElementById('m-play').addEventListener('click',function(){
-  if(!playlist.length) return;
-  if(playing){ audio.pause(); playing=false; } else { audio.play(); playing=true; }
+  if(!currentTracks().length) return;
+  if(playing){ audio.pause(); playing=false; } else { audio.play().catch(function(){}); playing=true; }
   setPlayIcon(playing);
 });
 document.getElementById('m-prev').addEventListener('click',function(){ loadTrack(curIdx-1,playing); });
 document.getElementById('m-next').addEventListener('click',function(){ loadTrack(curIdx+1,playing); });
 
-// Open files
+// ── Render tabs ──
+function renderTabs(){
+  var tabs = document.getElementById('pl-tabs');
+  tabs.innerHTML='';
+  playlists.forEach(function(pl,i){
+    var t=document.createElement('div');
+    t.className='pl-tab'+(i===activePl?' active':'');
+    t.textContent=pl.name;
+    t.addEventListener('click',function(){ activePl=i; curIdx=0; renderTabs(); renderPlaylist(); savePlaylists(); });
+    tabs.appendChild(t);
+  });
+  // + button to create new playlist
+  var nb=document.createElement('button');
+  nb.className='pl-tab-new'; nb.textContent='+';
+  nb.addEventListener('click', createPlaylist);
+  tabs.appendChild(nb);
+  // Update label
+  var pl=currentPl();
+  document.getElementById('pl-name-label').textContent = pl ? pl.name+' ('+pl.tracks.length+' bài)' : 'Chưa có playlist';
+}
+
+function createPlaylist(){
+  var name = prompt('Tên playlist:', 'Playlist '+(playlists.length+1));
+  if(!name) return;
+  playlists.push({name:name.trim(),tracks:[]});
+  activePl = playlists.length-1;
+  curIdx   = 0;
+  renderTabs(); renderPlaylist(); savePlaylists();
+}
+
+// ── Render track list ──
+function renderPlaylist(){
+  var body=document.getElementById('pl-body');
+  body.innerHTML='';
+  var tracks=currentTracks();
+  if(!tracks.length){
+    body.innerHTML='<div style="padding:12px;text-align:center;font-size:0.72rem;color:rgba(160,120,255,0.4)">Nhấn + để thêm bài hát</div>';
+    return;
+  }
+  tracks.forEach(function(t,i){
+    var d=document.createElement('div');
+    d.className='pl-item'+(i===curIdx?' playing':'');
+    var delBtn='<button class="pl-del" data-idx="'+i+'" title="Xóa bài này">✕</button>';
+    d.innerHTML='<span class="pl-idx">'+(i===curIdx?'▶':String(i+1))+'</span>'+
+      '<span class="pl-name">'+escHtml(t.name)+'</span>'+delBtn;
+    d.querySelector('.pl-del').addEventListener('click',function(e){
+      e.stopPropagation();
+      var idx2=parseInt(this.getAttribute('data-idx'));
+      currentPl().tracks.splice(idx2,1);
+      if(curIdx>=currentPl().tracks.length) curIdx=Math.max(0,currentPl().tracks.length-1);
+      renderTabs(); renderPlaylist(); savePlaylists();
+    });
+    d.addEventListener('click',function(){ loadTrack(i,true); });
+    body.appendChild(d);
+  });
+  var items=body.querySelectorAll('.pl-item');
+  if(items[curIdx]) items[curIdx].scrollIntoView({block:'nearest'});
+}
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Add files ──
 async function addFiles(){
   if(!window.api||!window.api.dockOpenAudio) return;
   var paths = await window.api.dockOpenAudio();
   if(!paths||!paths.length) return;
-  var added = 0;
+  // If no playlists yet, create default one
+  if(!playlists.length){
+    playlists.push({name:'My Music',tracks:[]});
+    activePl=0;
+  }
+  var wasEmpty = currentTracks().length===0;
   paths.forEach(function(fp){
     var name=fp.split(/[\\/]/).pop();
     var ext=(name.split('.').pop()||'mp3').toLowerCase();
     var base=name.replace(/\.[^.]+$/,'');
-    if(!playlist.some(function(p){return p.path===fp;})){
-      playlist.push({path:fp,name:base,ext:ext});
-      added++;
+    if(!currentPl().tracks.some(function(p){return p.path===fp;})){
+      currentPl().tracks.push({path:fp,name:base,ext:ext});
     }
   });
-  if(added && playlist.length===added){
-    loadTrack(0,true);
-  }
-  document.getElementById('pl-count').textContent=playlist.length;
-  renderPlaylist();
+  renderTabs(); renderPlaylist(); savePlaylists();
+  if(wasEmpty) loadTrack(0,true);
   if(plWrap.style.display==='none') togglePlaylist();
 }
 document.getElementById('music-open').addEventListener('click', addFiles);
 document.getElementById('pl-add-btn').addEventListener('click', addFiles);
 
-function renderPlaylist(){
-  var body=document.getElementById('pl-body');
-  body.innerHTML='';
-  document.getElementById('pl-count').textContent=playlist.length;
-  playlist.forEach(function(t,i){
-    var d=document.createElement('div');
-    d.className='pl-item'+(i===curIdx?' playing':'');
-    d.innerHTML='<span class="pl-idx">'+(i===curIdx?'▶':String(i+1))+'</span>'+
-      '<span class="pl-name">'+t.name+'</span>'+
-      '<span class="pl-dur">'+t.ext+'</span>';
-    d.addEventListener('click',function(){ loadTrack(i,true); closeOverlay(); });
-    body.appendChild(d);
-  });
-  // Scroll to current
-  var items=body.querySelectorAll('.pl-item');
-  if(items[curIdx]) items[curIdx].scrollIntoView({block:'nearest'});
+document.getElementById('pl-rename-btn').addEventListener('click',function(){
+  var pl=currentPl(); if(!pl) return;
+  var name=prompt('Đổi tên playlist:',pl.name);
+  if(name){ pl.name=name.trim(); renderTabs(); savePlaylists(); }
+});
+document.getElementById('pl-delete-btn').addEventListener('click',function(){
+  if(!playlists.length) return;
+  if(!confirm('Xóa playlist "'+(currentPl()||{}).name+'"?')) return;
+  playlists.splice(activePl,1);
+  activePl=Math.max(0,activePl-1);
+  curIdx=0; audio.pause(); playing=false; setPlayIcon(false);
+  document.getElementById('music-title').textContent='No track';
+  renderTabs(); renderPlaylist(); savePlaylists();
+});
+
+// ── Init: load from storage ──
+loadPlaylists();
+renderTabs();
+renderPlaylist();
+if(currentTracks().length){
+  var t=currentTracks()[curIdx]||currentTracks()[0];
+  audio.src='file://'+t.path;
+  document.getElementById('music-title').textContent=t.name;
+  document.getElementById('music-sub').textContent=(t.ext||'').toUpperCase()+' · saved';
 }
 </script>
 </body>
