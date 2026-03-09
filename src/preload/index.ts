@@ -58,7 +58,8 @@ const api = {
   launchApp: (appId: string): Promise<boolean> => ipcRenderer.invoke('launch-app', appId),
   getSystemStats: (): Promise<any> => ipcRenderer.invoke('get-system-stats'),
   setDockMouseEvents: (interactive: boolean): void => ipcRenderer.send('set-dock-mouse-events', interactive),
-  dockOpenAudio: (): Promise<string | null> => ipcRenderer.invoke('dock-open-audio')
+  dockOpenAudio: (): Promise<string[] | null> => ipcRenderer.invoke('dock-open-audio'),
+  dockResize: (expanded: boolean): void => ipcRenderer.send('dock-resize', expanded)
 }
 
 if (process.contextIsolated) {

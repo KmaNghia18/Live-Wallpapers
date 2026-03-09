@@ -29,17 +29,16 @@ export class DockManager {
     const primaryDisplay = electron.screen.getPrimaryDisplay()
     const bounds = primaryDisplay.bounds
 
-    const dockHeight = 80        // Visible dock bar height
-    const windowHeight = 280     // Full window height (includes search overlay space above)
-    const dockY = bounds.y + bounds.height - windowHeight - 2
+    const dockHeight = 80        // Normal dock bar height
+    const dockY = bounds.y + bounds.height - dockHeight - 2
 
-    console.log('[DockManager] Creating dock:', { bounds, dockHeight, windowHeight, dockY })
+    console.log('[DockManager] Creating dock:', { bounds, dockHeight, dockY })
 
     this.dockWindow = new electron.BrowserWindow({
       x: bounds.x,
       y: dockY,
       width: bounds.width,
-      height: windowHeight,
+      height: dockHeight,
       frame: false,
       transparent: true,
       resizable: false,
@@ -77,10 +76,10 @@ export class DockManager {
     this.dockWindow.show()
     this.isVisible = true
 
-    // CRITICAL: Allow clicks to pass through transparent areas at OS level.
-    // forward:true means mouse events are still sent to the webContents so renderer
-    // can detect hover and call set-dock-mouse-events to toggle back.
-    this.dockWindow.setIgnoreMouseEvents(true, { forward: true })
+    // Window is only 80px tall, so setIgnoreMouseEvents(false) is safe:
+    // transparent parts are above the window, not part of it.
+    // No dynamic toggle needed — eliminates all flickering/timing issues.
+    this.dockWindow.setIgnoreMouseEvents(false)
 
     // Auto-hide Windows taskbar
     this.hideTaskbar()
@@ -168,9 +167,18 @@ export class DockManager {
     // Renderer calls this with true when mouse is over interactive elements
     electron.ipcMain.on('set-dock-mouse-events', (_event, interactive: boolean) => {
       if (this.dockWindow && !this.dockWindow.isDestroyed()) {
-        // interactive=true → receive clicks; interactive=false → pass through
         this.dockWindow.setIgnoreMouseEvents(!interactive, { forward: true })
       }
+    })
+
+    // Resize dock window for search/playlist overlay
+    electron.ipcMain.on('dock-resize', (_event, expanded: boolean) => {
+      if (!this.dockWindow || this.dockWindow.isDestroyed()) return
+      const primaryDisplay = electron.screen.getPrimaryDisplay()
+      const bounds = primaryDisplay.bounds
+      const winH = expanded ? 280 : 80
+      const y    = bounds.y + bounds.height - winH - 2
+      this.dockWindow.setBounds({ x: bounds.x, y, width: bounds.width, height: winH }, false)
     })
 
     // Open file dialog for music player (multi-select)

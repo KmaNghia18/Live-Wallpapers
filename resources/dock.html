@@ -282,33 +282,6 @@
 
 <script>
 // ═══════════════════════════════════════════════
-// CLICK-THROUGH: Y-coordinate based (no flickering!)
-// Window = 280px. Dock bar = bottom 80px (Y >= 200).
-// Using Y-position is deterministic — it doesn't change
-// when setIgnoreMouseEvents toggles, so no oscillation.
-// ═══════════════════════════════════════════════
-var WIN_H  = 280;
-var DOCK_H = 80;
-var _inter = false;
-
-function sendMouseInteractive(v) {
-  if (v === _inter) return;
-  _inter = v;
-  if (window.api && window.api.setDockMouseEvents) window.api.setDockMouseEvents(v);
-}
-
-document.addEventListener('mousemove', function(e) {
-  var inDockBar    = e.clientY >= WIN_H - DOCK_H;          // bottom 80px
-  var overlayOpen  = overlay && overlay.classList.contains('active');
-  var inOverlay    = overlayOpen && e.clientY < WIN_H - DOCK_H;
-  sendMouseInteractive(inDockBar || inOverlay);
-}, { passive: true });
-
-document.addEventListener('mouseleave', function() {
-  sendMouseInteractive(false);
-}, { passive: true });
-
-// ═══════════════════════════════════════════════
 // CLOCK
 // ═══════════════════════════════════════════════
 var DAYS = ['CN','T2','T3','T4','T5','T6','T7'];
@@ -370,6 +343,8 @@ function openOverlay(kind){
   srchWrap.style.display  = kind === 'search'   ? '' : 'none';
   plWrap.style.display    = kind === 'playlist' ? '' : 'none';
   overlay.classList.add('active');
+  // Expand dock window upward to 280px so overlay has room
+  if (window.api && window.api.dockResize) window.api.dockResize(true);
   if(kind === 'search'){
     srchWrap.classList.add('anim-up');
     setTimeout(function(){ srchWrap.classList.remove('anim-up'); }, 400);
@@ -391,6 +366,8 @@ function closeOverlay(){
   srchOpen = false;
   searchBtn.classList.remove('on');
   document.getElementById('pl-btn').classList.remove('on');
+  // Collapse dock window back to 80px
+  if (window.api && window.api.dockResize) window.api.dockResize(false);
 }
 function toggleSearch(){
   if(srchOpen || srchWrap.style.display === ''){ closeOverlay(); }
