@@ -17,17 +17,34 @@ interface PlaylistEditorProps {
   onSetWallpaper?: (w: WallpaperItem) => void
 }
 
-const STORAGE_KEY = 'wp_playlists_v2'
+const STORAGE_KEY = 'wp_playlists_v3'
 
-function loadFromStorage(): PlaylistData[] {
+// Primary: write to disk via IPC. Fallback: localStorage
+function saveToStorage(pl: PlaylistData[]): void {
+  const data = { playlists: pl }
+  if (window.api && (window.api as any).wpPlaylistWrite) {
+    ;(window.api as any).wpPlaylistWrite(data)
+  }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)) } catch {}
+}
+
+async function loadFromDisk(): Promise<PlaylistData[]> {
+  // Primary: IPC file
+  if (window.api && (window.api as any).wpPlaylistRead) {
+    try {
+      const d = await (window.api as any).wpPlaylistRead() as any
+      if (d && Array.isArray(d.playlists)) return d.playlists
+    } catch {}
+  }
+  // Fallback: localStorage
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const d = JSON.parse(raw)
+      if (d && Array.isArray(d.playlists)) return d.playlists
+    }
   } catch {}
   return []
-}
-function saveToStorage(pl: PlaylistData[]): void {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(pl)) } catch {}
 }
 
 const MODE_LABELS: Record<PlaylistData['mode'], string> = {
@@ -37,17 +54,27 @@ const MODE_LABELS: Record<PlaylistData['mode'], string> = {
 }
 
 function PlaylistEditor({ wallpapers, currentWallpaper, onSetWallpaper }: PlaylistEditorProps): JSX.Element {
-  const [playlists, setPlaylists] = useState<PlaylistData[]>(loadFromStorage)
-  const [selectedId, setSelectedId] = useState<string | null>(() => {
-    const saved = loadFromStorage()
-    return saved[0]?.id ?? null
-  })
+  const [playlists, setPlaylists] = useState<PlaylistData[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [isLoaded, setIsLoaded] = useState(false)
   const [newName, setNewName] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [timerHandle, setTimerHandle] = useState<ReturnType<typeof setInterval> | null>(null)
 
-  // Persist on every change
-  useEffect(() => { saveToStorage(playlists) }, [playlists])
+  // Load from disk on mount
+  useEffect(() => {
+    loadFromDisk().then(pl => {
+      setPlaylists(pl)
+      setSelectedId(pl[0]?.id ?? null)
+      setIsLoaded(true)
+    })
+  }, [])
+
+  // Persist whenever playlists change (but not on initial empty load)
+  useEffect(() => {
+    if (isLoaded) saveToStorage(playlists)
+  }, [playlists, isLoaded])
+
 
   const selected = playlists.find(p => p.id === selectedId) ?? null
   const activePlaylist = playlists.find(p => p.isActive) ?? null

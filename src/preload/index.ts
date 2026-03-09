@@ -61,7 +61,9 @@ const api = {
   dockOpenAudio: (): Promise<string[] | null> => ipcRenderer.invoke('dock-open-audio'),
   dockResize: (expanded: boolean): void => ipcRenderer.send('dock-resize', expanded),
   dockPlaylistRead: (): Promise<unknown> => ipcRenderer.invoke('dock-playlist-read'),
-  dockPlaylistWrite: (data: unknown): void => ipcRenderer.send('dock-playlist-write', data)
+  dockPlaylistWrite: (data: unknown): void => ipcRenderer.send('dock-playlist-write', data),
+  wpPlaylistRead: (): Promise<unknown> => ipcRenderer.invoke('wp-playlist-read'),
+  wpPlaylistWrite: (data: unknown): void => ipcRenderer.send('wp-playlist-write', data)
 }
 
 if (process.contextIsolated) {

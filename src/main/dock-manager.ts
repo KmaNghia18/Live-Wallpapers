@@ -186,7 +186,8 @@ export class DockManager {
     const fs   = require('fs') as typeof import('fs')
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const path = require('path') as typeof import('path')
-    const plFile = path.join(electron.app.getPath('userData'), 'dock-playlists.json')
+    const plFile   = path.join(electron.app.getPath('userData'), 'dock-playlists.json')
+    const wpPlFile = path.join(electron.app.getPath('userData'), 'wallpaper-playlists.json')
 
     electron.ipcMain.handle('dock-playlist-read', async () => {
       try {
@@ -196,6 +197,17 @@ export class DockManager {
     })
     electron.ipcMain.on('dock-playlist-write', (_event, data: unknown) => {
       try { fs.writeFileSync(plFile, JSON.stringify(data), 'utf-8') } catch {}
+    })
+
+    // Persist wallpaper playlists to disk (userData/wallpaper-playlists.json)
+    electron.ipcMain.handle('wp-playlist-read', async () => {
+      try {
+        if (!fs.existsSync(wpPlFile)) return null
+        return JSON.parse(fs.readFileSync(wpPlFile, 'utf-8'))
+      } catch { return null }
+    })
+    electron.ipcMain.on('wp-playlist-write', (_event, data: unknown) => {
+      try { fs.writeFileSync(wpPlFile, JSON.stringify(data), 'utf-8') } catch {}
     })
 
     // Open file dialog for music player (multi-select)
