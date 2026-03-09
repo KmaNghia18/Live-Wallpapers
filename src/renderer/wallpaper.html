@@ -96,51 +96,80 @@
     }
 
     // --- Crossfade transition ---
-    // 1. Load new content into the BOTTOM (hidden) layer
-    // 2. Swap: fade top→out by making it bottom, fade bottom→in by making it top
+    // Steps:
+    // 1. Load new content into hidden layer
+    // 2. Wait for video/image to be ready (canplay / load event)
+    // 3. Only THEN fade it in — no flash, no blank frame
     var _swapTimeout = null;
+    var _pendingAbort = null; // cancel pending transition
 
     function transitionTo(type, path) {
-      // Clear any pending swap
+      // Abort any pending swap
       if (_swapTimeout) { clearTimeout(_swapTimeout); _swapTimeout = null; }
+      if (_pendingAbort) { _pendingAbort(); _pendingAbort = null; }
 
       // Determine the "next" layer (currently hidden one)
       var nextLayer = (topLayer === layerB) ? layerA : layerB;
       var prevLayer = topLayer;
 
-      // Load content into the next layer (currently behind)
+      // Load content into the next layer (currently behind / invisible)
       clearLayer(nextLayer);
       var el = (type === 'image' || type === 'gif') ? createImage(path) : createVideo(path);
       nextLayer.appendChild(el);
 
-      // Bring next layer to front and fade it in
-      nextLayer.style.zIndex = '2';
-      prevLayer.style.zIndex = '1';
+      var aborted = false;
+      _pendingAbort = function() { aborted = true; };
 
-      // Force reflow so transition fires
-      void nextLayer.offsetWidth;
+      function doFade() {
+        if (aborted) return;
+        _pendingAbort = null;
 
-      if (nextLayer === layerB) {
-        layerB.classList.add('visible');
-      } else {
-        // layerA is going to top: we manually handle opacity via inline style
-        layerA.style.transition = 'opacity ' + (FADE_MS / 1000) + 's ease-in-out';
-        layerA.style.opacity = '1';
-        // And fade out layerB (currently prev)
-        layerB.classList.remove('visible');
+        // Bring next layer to front
+        nextLayer.style.zIndex = '2';
+        prevLayer.style.zIndex = '1';
+
+        // Force reflow so CSS transition fires
+        void nextLayer.offsetWidth;
+
+        if (nextLayer === layerB) {
+          layerB.classList.add('visible');
+        } else {
+          layerA.style.opacity = '1';
+          layerB.classList.remove('visible');
+        }
+
+        // After fade completes, clean up old layer
+        _swapTimeout = setTimeout(function() {
+          if (aborted) return;
+          clearLayer(prevLayer);
+          prevLayer.style.zIndex = '';
+          _swapTimeout = null;
+        }, FADE_MS + 200);
+
+        // Update tracking
+        topLayer = nextLayer;
+        botLayer = prevLayer;
       }
 
-      // After transition, clean up the old layer (free memory)
-      _swapTimeout = setTimeout(function() {
-        clearLayer(prevLayer);
-        prevLayer.style.zIndex = '';
-        prevLayer.style.opacity = '';
-        _swapTimeout = null;
-      }, FADE_MS + 100);
-
-      // Update tracking
-      topLayer = nextLayer;
-      botLayer = prevLayer;
+      // Wait until media is ready before fading
+      if (el.tagName === 'VIDEO') {
+        el.addEventListener('canplay', function onReady() {
+          el.removeEventListener('canplay', onReady);
+          doFade();
+        }, { once: true });
+        // Fallback: if canplay doesn't fire in 3s, fade anyway
+        var fallback = setTimeout(function() { doFade(); }, 3000);
+        var origAbort = _pendingAbort;
+        _pendingAbort = function() { aborted = true; clearTimeout(fallback); if(origAbort) origAbort(); };
+      } else {
+        // Image
+        if (el.complete) {
+          doFade();
+        } else {
+          el.addEventListener('load', function() { doFade(); }, { once: true });
+          el.addEventListener('error', function() { doFade(); }, { once: true });
+        }
+      }
     }
 
     // Reset layerA opacity management on first call

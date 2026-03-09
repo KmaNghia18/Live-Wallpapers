@@ -44,15 +44,26 @@ export class WallpaperEngine {
   }
 
   async setWallpaper(wallpaperPath: string, monitor: MonitorInfo): Promise<void> {
-    // Destroy existing wallpaper window for this monitor
-    const existing = this.wallpaperWindows.get(monitor.id)
-    if (existing && !existing.isDestroyed()) {
-      existing.close()
-    }
-
+    const wallpaperType = this.getWallpaperType(wallpaperPath)
     const { x, y } = monitor.bounds
     const { width, height } = monitor.size
 
+    // ── Reuse existing window if possible (avoids flash from close+recreate) ──
+    const existing = this.wallpaperWindows.get(monitor.id)
+    if (existing && !existing.isDestroyed()) {
+      // Just send new wallpaper to the running HTML — crossfade happens in renderer
+      existing.webContents.send('load-wallpaper', {
+        path: wallpaperPath,
+        width,
+        height,
+        type: wallpaperType,
+      })
+      this.currentWallpaper = wallpaperPath
+      this._isPlaying = true
+      return
+    }
+
+    // ── First time: create the wallpaper window ──
     const wallpaperWindow = new BrowserWindow({
       x,
       y,
@@ -65,6 +76,7 @@ export class WallpaperEngine {
       focusable: false,
       transparent: false,
       hasShadow: false,
+      backgroundColor: '#000000',
       type: 'desktop',
       show: false,
       webPreferences: {
@@ -72,8 +84,7 @@ export class WallpaperEngine {
         sandbox: false,
         contextIsolation: true,
         nodeIntegration: false,
-        // Allow loading local file:// videos
-        webSecurity: false
+        webSecurity: false,
       }
     })
 
@@ -87,7 +98,6 @@ export class WallpaperEngine {
       await wallpaperWindow.loadFile(wallpaperHtmlPath)
     } catch (error) {
       console.error('[WallpaperEngine] Failed to load wallpaper.html:', error)
-      // Fallback: try from out/renderer if it exists
       try {
         await wallpaperWindow.loadFile(join(__dirname, '../renderer/wallpaper.html'))
       } catch {
@@ -99,15 +109,13 @@ export class WallpaperEngine {
     // Wait for the renderer to signal readiness
     await this.waitForRendererReady(wallpaperWindow)
 
-    // Now send wallpaper data to renderer
-    const wallpaperType = this.getWallpaperType(wallpaperPath)
+    // Send wallpaper data to renderer
     console.log('[WallpaperEngine] Sending wallpaper:', wallpaperPath, 'type:', wallpaperType)
-
     wallpaperWindow.webContents.send('load-wallpaper', {
       path: wallpaperPath,
       width,
       height,
-      type: wallpaperType
+      type: wallpaperType,
     })
 
     wallpaperWindow.show()
