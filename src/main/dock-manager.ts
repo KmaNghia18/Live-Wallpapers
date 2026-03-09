@@ -181,6 +181,23 @@ export class DockManager {
       this.dockWindow.setBounds({ x: bounds.x, y, width: bounds.width, height: winH }, false)
     })
 
+    // Persist music playlists to disk (userData/dock-playlists.json)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs   = require('fs') as typeof import('fs')
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('path') as typeof import('path')
+    const plFile = path.join(electron.app.getPath('userData'), 'dock-playlists.json')
+
+    electron.ipcMain.handle('dock-playlist-read', async () => {
+      try {
+        if (!fs.existsSync(plFile)) return null
+        return JSON.parse(fs.readFileSync(plFile, 'utf-8'))
+      } catch { return null }
+    })
+    electron.ipcMain.on('dock-playlist-write', (_event, data: unknown) => {
+      try { fs.writeFileSync(plFile, JSON.stringify(data), 'utf-8') } catch {}
+    })
+
     // Open file dialog for music player (multi-select)
     electron.ipcMain.handle('dock-open-audio', async () => {
       const result = await electron.dialog.showOpenDialog({

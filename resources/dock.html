@@ -537,22 +537,31 @@ var curIdx  = 0;
 var playlists  = [];
 var activePl   = 0;   // index of currently selected playlist
 
-var STORAGE_KEY = 'dock_playlists_v2';
-
+// ── Save/Load: IPC file (userData/dock-playlists.json) ──
 function savePlaylists(){
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({playlists:playlists, activePl:activePl, curIdx:curIdx})); } catch(e){}
+  var data = {playlists:playlists, activePl:activePl, curIdx:curIdx};
+  // Primary: write to disk via IPC (persistent across restarts)
+  if(window.api && window.api.dockPlaylistWrite){
+    window.api.dockPlaylistWrite(data);
+  }
+  // Fallback: localStorage
+  try { localStorage.setItem('dock_playlists_v3', JSON.stringify(data)); } catch(e){}
 }
-function loadPlaylists(){
-  try {
-    var raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return;
-    var d = JSON.parse(raw);
-    if(d.playlists && d.playlists.length) {
-      playlists = d.playlists;
-      activePl  = Math.min(d.activePl||0, playlists.length-1);
-      curIdx    = d.curIdx||0;
-    }
-  } catch(e){}
+async function loadPlaylists(){
+  var d = null;
+  // Primary: read from disk
+  if(window.api && window.api.dockPlaylistRead){
+    try { d = await window.api.dockPlaylistRead(); } catch(e){}
+  }
+  // Fallback: localStorage
+  if(!d){
+    try { d = JSON.parse(localStorage.getItem('dock_playlists_v3')||'null'); } catch(e){}
+  }
+  if(d && d.playlists && d.playlists.length){
+    playlists = d.playlists;
+    activePl  = Math.min(d.activePl||0, playlists.length-1);
+    curIdx    = d.curIdx||0;
+  }
 }
 function currentPl(){ return playlists[activePl] || null; }
 function currentTracks(){ var p=currentPl(); return p?p.tracks:[]; }
@@ -751,16 +760,19 @@ document.getElementById('pl-delete-btn').addEventListener('click',function(){
   });
 });
 
-// ── Init: load from storage ──
-loadPlaylists();
-renderTabs();
-renderPlaylist();
-if(currentTracks().length){
-  var t=currentTracks()[curIdx]||currentTracks()[0];
-  audio.src='file://'+t.path;
-  document.getElementById('music-title').textContent=t.name;
-  document.getElementById('music-sub').textContent=(t.ext||'').toUpperCase()+' · saved';
-}
+// ── Init: load from disk then render ──
+(async function init(){
+  await loadPlaylists();
+  renderTabs();
+  renderPlaylist();
+  if(currentTracks().length){
+    var t2=currentTracks()[curIdx]||currentTracks()[0];
+    audio.src='file://'+t2.path;
+    document.getElementById('music-title').textContent=t2.name;
+    document.getElementById('music-sub').textContent=(t2.ext||'').toUpperCase()+' · ✓ saved';
+  }
+})();
 </script>
 </body>
 </html>
+
