@@ -56,7 +56,9 @@ const api = {
   dockHide: (): Promise<boolean> => ipcRenderer.invoke('dock-hide'),
   dockStatus: (): Promise<{ isVisible: boolean }> => ipcRenderer.invoke('dock-status'),
   launchApp: (appId: string): Promise<boolean> => ipcRenderer.invoke('launch-app', appId),
-  getSystemStats: (): Promise<any> => ipcRenderer.invoke('get-system-stats')
+  getSystemStats: (): Promise<any> => ipcRenderer.invoke('get-system-stats'),
+  setDockMouseEvents: (interactive: boolean): void => ipcRenderer.send('set-dock-mouse-events', interactive),
+  dockOpenAudio: (): Promise<string | null> => ipcRenderer.invoke('dock-open-audio')
 }
 
 if (process.contextIsolated) {

@@ -77,6 +77,11 @@ export class DockManager {
     this.dockWindow.show()
     this.isVisible = true
 
+    // CRITICAL: Allow clicks to pass through transparent areas at OS level.
+    // forward:true means mouse events are still sent to the webContents so renderer
+    // can detect hover and call set-dock-mouse-events to toggle back.
+    this.dockWindow.setIgnoreMouseEvents(true, { forward: true })
+
     // Auto-hide Windows taskbar
     this.hideTaskbar()
 
@@ -157,6 +162,25 @@ export class DockManager {
 
     electron.ipcMain.handle('dock-status', () => {
       return { isVisible: this.isVisible }
+    })
+
+    // Dynamic mouse event toggle for click-through
+    // Renderer calls this with true when mouse is over interactive elements
+    electron.ipcMain.on('set-dock-mouse-events', (_event, interactive: boolean) => {
+      if (this.dockWindow && !this.dockWindow.isDestroyed()) {
+        // interactive=true → receive clicks; interactive=false → pass through
+        this.dockWindow.setIgnoreMouseEvents(!interactive, { forward: true })
+      }
+    })
+
+    // Open file dialog for music player
+    electron.ipcMain.handle('dock-open-audio', async () => {
+      const result = await electron.dialog.showOpenDialog({
+        title: 'Choose audio file',
+        filters: [{ name: 'Audio', extensions: ['mp3','ogg','wav','flac','m4a','aac'] }],
+        properties: ['openFile']
+      })
+      return result.canceled ? null : result.filePaths[0]
     })
 
     // App launcher from dock
