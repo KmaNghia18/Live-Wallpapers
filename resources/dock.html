@@ -162,6 +162,27 @@
 
     @keyframes slideUp{from{opacity:0;transform:translateY(10px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
     .anim-up{animation:slideUp 0.28s cubic-bezier(0.16,1,0.3,1) both}
+
+    /* ─── Custom mini-dialog (replaces prompt/confirm) ─── */
+    .mini-dialog-overlay{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;pointer-events:auto}
+    .mini-dialog{background:linear-gradient(135deg,rgba(12,7,28,0.97),rgba(18,10,42,0.95));
+      border:1px solid rgba(162,130,255,0.28);border-radius:14px;padding:16px 18px;
+      box-shadow:0 16px 60px rgba(0,0,0,0.8),inset 0 1px 0 rgba(200,160,255,0.12);
+      display:flex;flex-direction:column;gap:10px;min-width:240px;max-width:320px}
+    .mini-dialog-title{font-size:0.8rem;color:rgba(220,210,255,0.9);font-weight:400}
+    .mini-dialog-input{background:rgba(255,255,255,0.05);border:1px solid rgba(162,130,255,0.22);
+      border-radius:8px;padding:7px 11px;font-family:"Outfit",sans-serif;font-size:0.82rem;
+      color:rgba(255,255,255,0.9);outline:none;width:100%;caret-color:rgba(162,130,255,0.9)}
+    .mini-dialog-input:focus{border-color:rgba(162,130,255,0.5)}
+    .mini-dialog-btns{display:flex;gap:6px;justify-content:flex-end}
+    .mini-dialog-btn{padding:5px 14px;border-radius:8px;font-size:0.75rem;cursor:pointer;
+      border:1px solid transparent;font-family:"Outfit",sans-serif;transition:all 0.15s ease}
+    .mini-dialog-btn.cancel{background:rgba(255,255,255,0.05);color:rgba(190,165,255,0.6);border-color:rgba(162,130,255,0.15)}
+    .mini-dialog-btn.cancel:hover{background:rgba(255,255,255,0.08);color:rgba(190,165,255,0.85)}
+    .mini-dialog-btn.ok{background:rgba(108,92,231,0.25);color:rgba(200,185,255,0.95);border-color:rgba(108,92,231,0.4)}
+    .mini-dialog-btn.ok:hover{background:rgba(108,92,231,0.38)}
+    .mini-dialog-btn.danger{background:rgba(200,60,60,0.2);color:rgba(255,130,130,0.9);border-color:rgba(200,60,60,0.35)}
+    .mini-dialog-btn.danger:hover{background:rgba(200,60,60,0.32)}
   </style>
 </head>
 <body>
@@ -605,13 +626,54 @@ function renderTabs(){
   document.getElementById('pl-name-label').textContent = pl ? pl.name+' ('+pl.tracks.length+' bài)' : 'Chưa có playlist';
 }
 
+// ── Custom dialog helpers (prompt/confirm disabled in Electron) ──
+function miniPrompt(title, defaultVal, callback){
+  var overlay = document.createElement('div');
+  overlay.className = 'mini-dialog-overlay';
+  overlay.innerHTML =
+    '<div class="mini-dialog">'+
+    '<div class="mini-dialog-title">'+title+'</div>'+
+    '<input class="mini-dialog-input" id="mdlg-input" value="'+escHtml(defaultVal||'')+'"/>'+
+    '<div class="mini-dialog-btns">'+
+    '<button class="mini-dialog-btn cancel" id="mdlg-cancel">Hủy</button>'+
+    '<button class="mini-dialog-btn ok" id="mdlg-ok">OK</button>'+
+    '</div></div>';
+  document.body.appendChild(overlay);
+  var inp = overlay.querySelector('#mdlg-input');
+  inp.focus(); inp.select();
+  function done(val){ document.body.removeChild(overlay); callback(val); }
+  overlay.querySelector('#mdlg-ok').addEventListener('click',function(){ done(inp.value.trim()||null); });
+  overlay.querySelector('#mdlg-cancel').addEventListener('click',function(){ done(null); });
+  inp.addEventListener('keydown',function(e){
+    if(e.code==='Enter') done(inp.value.trim()||null);
+    if(e.code==='Escape') done(null);
+  });
+}
+function miniConfirm(title, msg, callback){
+  var overlay = document.createElement('div');
+  overlay.className = 'mini-dialog-overlay';
+  overlay.innerHTML =
+    '<div class="mini-dialog">'+
+    '<div class="mini-dialog-title">'+title+'</div>'+
+    '<div style="font-size:0.75rem;color:rgba(190,165,255,0.6)">'+msg+'</div>'+
+    '<div class="mini-dialog-btns">'+
+    '<button class="mini-dialog-btn cancel" id="mdlg-cancel">Hủy</button>'+
+    '<button class="mini-dialog-btn danger" id="mdlg-ok">Xóa</button>'+
+    '</div></div>';
+  document.body.appendChild(overlay);
+  function done(v){ document.body.removeChild(overlay); callback(v); }
+  overlay.querySelector('#mdlg-ok').addEventListener('click',function(){ done(true); });
+  overlay.querySelector('#mdlg-cancel').addEventListener('click',function(){ done(false); });
+}
+
 function createPlaylist(){
-  var name = prompt('Tên playlist:', 'Playlist '+(playlists.length+1));
-  if(!name) return;
-  playlists.push({name:name.trim(),tracks:[]});
-  activePl = playlists.length-1;
-  curIdx   = 0;
-  renderTabs(); renderPlaylist(); savePlaylists();
+  miniPrompt('Tên playlist mới:', 'Playlist '+(playlists.length+1), function(name){
+    if(!name) return;
+    playlists.push({name:name, tracks:[]});
+    activePl = playlists.length-1;
+    curIdx   = 0;
+    renderTabs(); renderPlaylist(); savePlaylists();
+  });
 }
 
 // ── Render track list ──
@@ -672,17 +734,21 @@ document.getElementById('pl-add-btn').addEventListener('click', addFiles);
 
 document.getElementById('pl-rename-btn').addEventListener('click',function(){
   var pl=currentPl(); if(!pl) return;
-  var name=prompt('Đổi tên playlist:',pl.name);
-  if(name){ pl.name=name.trim(); renderTabs(); savePlaylists(); }
+  miniPrompt('Đổi tên playlist:', pl.name, function(name){
+    if(name){ pl.name=name; renderTabs(); savePlaylists(); }
+  });
 });
 document.getElementById('pl-delete-btn').addEventListener('click',function(){
   if(!playlists.length) return;
-  if(!confirm('Xóa playlist "'+(currentPl()||{}).name+'"?')) return;
-  playlists.splice(activePl,1);
-  activePl=Math.max(0,activePl-1);
-  curIdx=0; audio.pause(); playing=false; setPlayIcon(false);
-  document.getElementById('music-title').textContent='No track';
-  renderTabs(); renderPlaylist(); savePlaylists();
+  var pl=currentPl()||{};
+  miniConfirm('Xóa playlist', 'Xóa "'+escHtml(pl.name||'')+'" và tất cả bài trong đó?', function(ok){
+    if(!ok) return;
+    playlists.splice(activePl,1);
+    activePl=Math.max(0,activePl-1);
+    curIdx=0; audio.pause(); playing=false; setPlayIcon(false);
+    document.getElementById('music-title').textContent='No track';
+    renderTabs(); renderPlaylist(); savePlaylists();
+  });
 });
 
 // ── Init: load from storage ──
