@@ -55,7 +55,8 @@ const api = {
   dockShow: (): Promise<boolean> => ipcRenderer.invoke('dock-show'),
   dockHide: (): Promise<boolean> => ipcRenderer.invoke('dock-hide'),
   dockStatus: (): Promise<{ isVisible: boolean }> => ipcRenderer.invoke('dock-status'),
-  launchApp: (appId: string): Promise<boolean> => ipcRenderer.invoke('launch-app', appId)
+  launchApp: (appId: string): Promise<boolean> => ipcRenderer.invoke('launch-app', appId),
+  getSystemStats: (): Promise<any> => ipcRenderer.invoke('get-system-stats')
 }
 
 if (process.contextIsolated) {

@@ -44,10 +44,11 @@ export class DockManager {
       resizable: false,
       movable: false,
       skipTaskbar: true,
-      focusable: false,
+      focusable: true,       // Must be true for buttons to receive click events on Windows
       alwaysOnTop: true,
       hasShadow: false,
       roundedCorners: false,
+      show: false,           // Don't show until content is loaded
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
@@ -60,9 +61,14 @@ export class DockManager {
     // Keep dock above all windows including fullscreen
     this.dockWindow.setAlwaysOnTop(true, 'screen-saver')
 
-    // Allow mouse events (needed for buttons to work)
-    // Use forward:true so transparent areas pass events through to desktop
-    this.dockWindow.setIgnoreMouseEvents(false)
+    // Blur immediately after any focus to avoid stealing focus from user's apps
+    this.dockWindow.on('focus', () => {
+      setTimeout(() => {
+        if (this.dockWindow && !this.dockWindow.isDestroyed()) {
+          this.dockWindow.blur()
+        }
+      }, 50)
+    })
 
     // Load dock HTML
     const dockHtmlPath = join(__dirname, '../../resources/dock.html')

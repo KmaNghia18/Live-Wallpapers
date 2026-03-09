@@ -54,11 +54,31 @@ function AudioVisualizerSettings({ onApply }: AudioVisualizerSettingsProps): JSX
       <div className="page-header">
         <div>
           <h1 className="page-header__title">Audio Visualizer</h1>
-          <p className="page-header__subtitle">customize music-reactive wallpaper effects</p>
+          <p className="page-header__subtitle">Customize music-reactive wallpaper effects</p>
         </div>
-        <button className="btn btn--primary" onClick={() => onApply?.(config)}>
-          🎵 Apply Visualizer
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{
+            fontSize: '0.72rem', padding: '3px 10px', borderRadius: '10px',
+            background: 'rgba(253,203,110,0.12)', color: 'rgba(253,203,110,0.85)',
+            border: '1px solid rgba(253,203,110,0.2)'
+          }}>⚠ Preview Only</span>
+          <button className="btn btn--primary" onClick={() => onApply?.(config)}>
+            🎵 Apply
+          </button>
+        </div>
+      </div>
+
+      {/* Notice */}
+      <div style={{
+        padding: '12px 16px', borderRadius: '12px', marginBottom: '8px',
+        background: 'rgba(253,203,110,0.06)',
+        border: '1px solid rgba(253,203,110,0.15)',
+        fontSize: '0.8rem', color: 'rgba(253,203,110,0.75)',
+        lineHeight: 1.5
+      }}>
+        <strong>ℹ️ Lưu ý:</strong> Tính năng này hiển thị preview UI của visualizer.
+        Để kết nối với audio thật, cần quyền truy cập microphone hoặc audio loopback từ hệ thống.
+        Config sẽ được lưu và áp dụng khi có wallpaper hỗ trợ audio visualizer.
       </div>
 
       {/* Style Selection */}
